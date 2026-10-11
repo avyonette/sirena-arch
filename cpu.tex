@@ -1,0 +1,192 @@
+\documentclass[a4paper,10pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{adjustbox}
+\usepackage{float}
+\usepackage{indentfirst}
+
+%opening
+\title{
+    $SiR^2ENA$ \\
+    \small Simple Register-Register Extensible Neumann Architecture \\
+    \large Instruction Set Architecture \\
+    \large 1.0
+}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+
+\section{Preface}
+\section{Glossary}
+\begin{itemize}
+	\item Word - 32-bit value
+	\item Half-word - 16-bit value
+	\item Byte - 8-bit value
+\end{itemize}
+
+\section{Design}
+\subsection{Registers}
+
+The SyrENA architecture, similarily to the TMS9900, does not store general-purpose registers on the CPU, but rather a \emph{frame pointer} that points to the address in register RAM of the current \emph{register frame} for the executing context.
+
+A \emph{register frame} refers to a (virtual) structure in RAM of 128 bytes (1024 bits) in length that stores 32 4-byte values total:
+
+\begin{table}[H]
+    \caption{Register frame (1023-768)}
+    \centering
+    \resizebox{\linewidth}{!}{
+        \begin{tabular}{|c|c|c|c|c|c|c|c|}
+\hline
+1023..992 & 991..960 & 959..928 & 927..896 & 895..864 & 863..832 & 831..800 & 799..768 \\
+\hline
+\multicolumn{8}{|c|}{reserved} \\
+\hline
+        \end{tabular}
+    }
+\end{table}
+
+\begin{table}[H]
+    \caption{Register frame (767-512)}
+    \centering
+    \resizebox{\linewidth}{!}{
+        \begin{tabular}{|c|c|c|c|c|c|c|c|}
+\hline
+767..736 & 735..704 & 703..672 & 671..640 & 639..608 & 607..576 & 575..544 & 543..512 \\
+\hline
+\multicolumn{5}{|c|}{reserved} & rsp & rtp & rip \\
+\hline
+        \end{tabular}
+    }
+\end{table}
+
+\begin{table}[H]
+    \caption{Register frame (511-256)}
+    \centering
+    \resizebox{\linewidth}{!}{
+        \begin{tabular}{|c|c|c|c|c|c|c|c|}
+\hline
+511..480 & 479..448 & 447..416 & 415..384 & 383..352 & 351..320 & 319.288 & 287..256 \\
+\hline
+r15 & r14 & r13 & r12 & r11 & r10 & r9 & r8 \\
+\hline
+        \end{tabular}
+    }
+\end{table}
+
+\begin{table}[H]
+    \caption{Register frame (255-0)}
+    \centering
+    \resizebox{\linewidth}{!}{
+        \begin{tabular}{|c|c|c|c|c|c|c|c|}
+\hline
+255..224 & 223..192 & 191..160 & 159..128 & 127..96 & 95..64 & 63..32 & 31..0 \\
+\hline
+r7 & r6 & r5 & r4 & r3 & r2 & r1 & r0 \\
+\hline
+        \end{tabular}
+    }
+\end{table}
+
+Registers are categorised into two categories:
+\begin{itemize}
+    \item \textbf{Global} registers are stored directly on the CPU and their values persist between frame changes
+    \item \textbf{Local} registers are stored in the \emph{register frame} and their address and/or value depends on the current \emph{frame pointer}
+\end{itemize}
+
+\subsection{Frame registers}
+\section{Register set}
+\subsection{Pointer registers}
+\subsubsection{rfp - frame pointer}
+{\small \textit{Availability: Global}}
+
+Stores the address to the current \emph{register frame}
+
+\subsubsection{rip - instruction pointer}
+{\small \textit{Availability: Local}}
+
+Stores the address of the currently executing instruction
+
+\subsubsection{rtp - procedure tail pointer}
+{\small \textit{Availability: Local}}
+
+Stores the address of the instruction that called the current procedure
+
+\subsubsection{rsp - stack pointer}
+{\small \textit{Availability: Local}}
+
+Stores the address of the current stack frame
+
+\subsection{Restricted purpose}
+\subsubsection{rz - zero register}
+{\small \textit{Availability: Global}}
+
+Always 0. Writes are ignored
+
+\subsection{General purpose}
+\subsubsection{r0}
+{\small \textit{Availability: Local}}
+
+\subsubsection{r1}
+{\small \textit{Availability: Local}}
+
+\subsubsection{r2}
+{\small \textit{Availability: Local}}
+
+\subsubsection{r3}
+{\small \textit{Availability: Local}}
+
+\subsubsection{r4}
+{\small \textit{Availability: Local}}
+
+\subsubsection{r5}
+{\small \textit{Availability: Local}}
+
+\subsubsection{r6}
+{\small \textit{Availability: Local}}
+
+\subsubsection{r7}
+{\small \textit{Availability: Local}}
+
+\subsubsection{r8}
+{\small \textit{Availability: Local}}
+
+\subsubsection{r9}
+{\small \textit{Availability: Local}}
+
+\subsubsection{r10}
+{\small \textit{Availability: Local}}
+
+\subsubsection{r11}
+{\small \textit{Availability: Local}}
+
+\subsubsection{r12}
+{\small \textit{Availability: Local}}
+
+\subsubsection{r13}
+{\small \textit{Availability: Local}}
+
+\subsubsection{r14}
+{\small \textit{Availability: Local}}
+
+\subsubsection{r15}
+{\small \textit{Availability: Local}}
+
+\section{Structures}
+\subsection{CPUID} \label{st:CPUID}
+
+\begin{table}[H]
+    \centering
+    \resizebox{\linewidth}{!}{
+        \begin{tabular}{|l|l|l|l|l|l|l|l|l|l|l|l|l|l|l|l|l|l|l|l|l|l|l|l|l|l|l|l|l|l|l|l|}
+\hline
+31 & 30 & 29 & 28 & 27 & 26 & 25 & 24 & 23 & 22 & 21 & 20 & 19 & 18 & 17 & 16 & 15 & 14 & 13 & 12 & 11 & 10 & 9 & 8 & 7 & 6 & 5 & 4 & 3 & 2 & 1 & 0 \\
+\hline
+\multicolumn{16}{|c|}{reserved} & \multicolumn{16}{|c|}{available instruction sets} \\
+\hline
+        \end{tabular}
+    }
+\end{table}
+
+\end{document}
