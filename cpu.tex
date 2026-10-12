@@ -44,7 +44,7 @@ A \emph{register frame} refers to a (virtual) structure in RAM of 128 bytes (102
 \hline
 1023..992 & 991..960 & 959..928 & 927..896 & 895..864 & 863..832 & 831..800 & 799..768 \\
 \hline
-\multicolumn{8}{|c|}{reserved} \\
+rfo1 & rfo0 & rfi1 & rfi0 & \multicolumn{4}{|c|}{reserved} \\
 \hline
 		\end{tabular}
 	}
@@ -184,6 +184,27 @@ Always 0. Writes are ignored
 \subsubsection{r15}
 {\small \textit{Availability: Local}}
 
+\subsection{Special registers}
+\subsubsection{rfi0}
+{\small \textit{Availability: Local}}
+
+Used for input flags for certain operations
+
+\subsubsection{rfi1}
+{\small \textit{Availability: Local}}
+
+Used for input flags for certain operations
+
+\subsubsection{rfo0}
+{\small \textit{Availability: Local}}
+
+Used for output flags of certain operations
+
+\subsubsection{rfo1}
+{\small \textit{Availability: Local}}
+
+Used for output flags of certain operations
+
 \section{Interrupts}
 Interrupts are handled by the CPU after every execute cycle of a single instruction. The CPU checks if any interrupts were raised after executing the instruction and, if so, checks and picks the correct \hyperref[ir:HANDLER]{Interrupt Routine Handler} from the current \hyperref[ir:ARRAY]{Interrupt Routine Array} to handle the raised interrupt.
 
@@ -232,7 +253,7 @@ ID & Mnemonic & Name & Type & Notes \\
 \hline
 0x02 & \#BRK & Breakpoint & Trap & \\
 \hline
-0x03 & \#IOP & Invalid Operation & Trap & ... \\
+0x03 & \#IOP & Invalid Operation & Trap & See \ref{ir:IOP} \\
 \hline
 0x04 & \#DBZ & Division By Zero & Trap & \\
 \hline
@@ -244,6 +265,21 @@ ID & Mnemonic & Name & Type & Notes \\
 .. & & & & user-defined \\
 0xFF & & & & \\
 \hline
+		\end{tabular}
+	}
+\end{table}
+
+\subsubsection{\#IOP Invalid Operation} \label {ir:IOP}
+The \emph{Invalid Operation} interrupt sets the \verb|rfo0| register accordingly based on the type of the operation that caused the interrupt:
+
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|c|}
+\hline
+rfo0 & Operation \\
+\hline
+% TODO
 		\end{tabular}
 	}
 \end{table}
@@ -294,6 +330,7 @@ Interrupt Routine Handlers (IRH) are user-defined procedures that respond to a s
 IRHs can exit at any time and resume execution by calling \verb|reti|. For non-recoverable interrupts this will result in the CPU being reset.
 
 \subsection{User-defined interrupts}
+% TODO
 
 \section{Structures}
 \subsection{CPUID} \label{st:CPUID}
