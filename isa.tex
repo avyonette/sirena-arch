@@ -430,82 +430,95 @@ a = a + sext16(b)
 \end{lstlisting}
 
 \subsubsection{mul - integer multiplication}
-\opr{0x00}{0x14}{result}{a}{b}{--}
+\opr{0x00}{0x14}{result}{a}{b}{0x00}
 	{Multiplies the values of \emph{a} and \emph{b} together and stores the result in \emph{result}}
 \begin{lstlisting}
 result = a * b
 \end{lstlisting}
 
 \subsubsection{div - integer division}
-\opr{0x00}{0x15}{result}{a}{b}{--}
+\opr{0x00}{0x14}{result}{a}{b}{0x01}
 	{Divides the value of \emph{a} by the value of \emph{b} stores the result in \emph{result}
-	\begin{itemize}
-	\item Fractional results are truncated towards 0
-	\item Division by 0 throws a DIVISION BY ZERO exception
-	\end{itemize}}
+		\begin{itemize}
+			\item Fractional results are truncated towards 0
+			\item Division by 0 throws a DIVISION BY ZERO exception
+		\end{itemize}
+	}
 \begin{lstlisting}
 result = a // b
 \end{lstlisting}
 
+\subsubsection{mod - integer remainder}
+\opr{0x00}{0x14}{result}{a}{b}{0x02}
+	{Stores the division remainder of dividing \emph{a} by \emph{b} in \emph{result}
+		\begin{itemize}
+			\item Fractional results are truncated towards 0
+			\item Modulo by 0 throws a DIVISION BY ZERO exception
+		\end{itemize}
+	}
+\begin{lstlisting}
+result = a % b
+\end{lstlisting}
+
 \subsection{Bitwise operations}
 \subsubsection{and - bitwise AND}
-\opr{0x00}{0x16}{result}{a}{b}{0x00}
+\opr{0x00}{0x15}{result}{a}{b}{0x00}
 	{Performs a bitwise AND operation on the values of \emph{a} and \emph{b} and stores the result in \emph{result}}
 \begin{lstlisting}
 result = a & b
 \end{lstlisting}
 
 \subsubsection{or - bitwise OR}
-\opr{0x00}{0x16}{result}{a}{b}{0x01}
+\opr{0x00}{0x15}{result}{a}{b}{0x01}
 	{Performs a bitwise OR operation on the values of \emph{a} and \emph{b} and stores the result in \emph{result}}
 \begin{lstlisting}
 result = a | b
 \end{lstlisting}
 
 \subsubsection{xor - bitwise XOR}
-\opr{0x00}{0x16}{result}{a}{b}{0x02}
+\opr{0x00}{0x15}{result}{a}{b}{0x02}
 	{Performs a bitwise XOR operation on the values of \emph{a} and \emph{b} and stores the result in \emph{result}}
 \begin{lstlisting}
 result = a ^ b
 \end{lstlisting}
 
-\subsubsection{shl - shift left}
-\opr{0x00}{0x17}{result}{a}{n}{0x00}
+\subsubsection{shl - logical shift left}
+\opr{0x00}{0x16}{result}{a}{n}{0x00}
 	{Shifts the value of \emph{a} left by \emph{n} places and stores the result in \emph{result}}
 \begin{lstlisting}
 result = a << n
 \end{lstlisting}
 
-\subsubsection{shr - shift right}
-\opr{0x00}{0x17}{result}{a}{n}{0x01}
+\subsubsection{shr - logical shift right}
+\opr{0x00}{0x16}{result}{a}{n}{0x01}
 	{Shifts the value of \emph{a} right by \emph{n} places and stores the result in \emph{result}}
 \begin{lstlisting}
 result = a >> n
 \end{lstlisting}
 
 \subsubsection{shsr - arithmetic (signed) shift right}
-\opr{0x00}{0x17}{result}{a}{n}{0x02}
+\opr{0x00}{0x16}{result}{a}{n}{0x02}
 	{Shifts the value of \emph{a} right by \emph{n} places and stores the result in \emph{result}, sign-replicating it}
 \begin{lstlisting}
 result = (a >> n) | (a >> n >> (31 - n) << 31)
 \end{lstlisting}
 
 \subsubsection{shli - logical shift left immediate}
-\opi{0x00}{0x18}{a}{n}{0x00}
+\opi{0x00}{0x17}{a}{n}{0x00}
 	{Shifts the value of \emph{a} in-place left by \emph{n} places}
 \begin{lstlisting}
 a = a << zext16(n)
 \end{lstlisting}
 
 \subsubsection{shri - logical shift right immediate}
-\opi{0x00}{0x18}{a}{n}{0x01}
+\opi{0x00}{0x17}{a}{n}{0x01}
 	{Shifts the value of \emph{a} in-place right by \emph{n} places}
 \begin{lstlisting}
 a = a >> zext16(n)
 \end{lstlisting}
 
 \subsubsection{shri - arithmetic (signed) shift right immediate}
-\opi{0x00}{0x18}{a}{n}{0x01}
+\opi{0x00}{0x17}{a}{n}{0x02}
 	{Shifts the value of \emph{a} in-place right by \emph{n} places, sign-replicating the result}
 \begin{lstlisting}
 a = a >> (a >> zext16(n)) | (a >> zext16(n) >> (31 - zext16(n)) << 31)
