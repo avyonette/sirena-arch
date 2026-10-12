@@ -543,4 +543,13 @@ if enable {
 	rrap[id * 0xC] = rrap[id * 0xC] & ~1
 }
 \end{lstlisting}
+
+\subsubsection{reti - return from interrupt handler}
+\opr{0x00}{0x1B}{--}{--}{--}{--}
+	{Sets the \emph{register frame pointer} to the value of the \emph{last frame pointer} and adds 4 to the \emph{instruction pointer} to proceed to the next instruction}
+\begin{lstlisting}
+mov rfp, rlfp
+addi rip, 4
+\end{lstlisting}
+
 \end{document}

@@ -291,7 +291,7 @@ Interrupt Routine Handler & Register Frame & Reserved & Enabled \\
 \subsection{Interrupt Routine Handler} \label{ir:HANDLER}
 Interrupt Routine Handlers (IRH) are user-defined procedures that respond to a specific interrupt raised by the CPU. IRs have their own \emph{register frame} and can access the previous \emph{register frame} via its address located in the \verb|rlfp| register.
 
-IRHs can exit at any time and resume execution by setting the current \emph{register frame} to the previous \emph{register frame}: \verb|mov rfp, rlfp|. For non-recoverable interrupts this will result in the CPU being reset.
+IRHs can exit at any time and resume execution by calling \verb|reti|. For non-recoverable interrupts this will result in the CPU being reset.
 
 \subsection{User-defined interrupts}
 
