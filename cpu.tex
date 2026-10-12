@@ -3,11 +3,15 @@
 \usepackage{adjustbox}
 \usepackage{float}
 \usepackage{indentfirst}
+\usepackage{hyperref}
+\usepackage{pifont}
+\newcommand{\cmark}{\ding{51}}%
+\newcommand{\xmark}{\ding{55}}%
 
 %opening
 \title{
-	$SiR^2ENA$ \\
-	\small Simple Register-Register Extensible Neumann Architecture \\
+	$SiER^2NA$ \\
+	\small Simple Extensible Register-Register Neumann Architecture \\
 	\large Instruction Set Architecture \\
 	\large 1.0
 }
@@ -26,8 +30,7 @@
 	\item Byte - 8-bit value
 \end{itemize}
 
-\section{Design}
-\subsection{Registers}
+\section{Registers}
 
 The SyrENA architecture, similarily to the TMS9900, does not store general-purpose registers on the CPU, but rather a \emph{frame pointer} that points to the address in register RAM of the current \emph{register frame} for the executing context.
 
@@ -55,7 +58,7 @@ A \emph{register frame} refers to a (virtual) structure in RAM of 128 bytes (102
 \hline
 767..736 & 735..704 & 703..672 & 671..640 & 639..608 & 607..576 & 575..544 & 543..512 \\
 \hline
-\multicolumn{5}{|c|}{reserved} & rsp & rtp & rip \\
+\multicolumn{4}{|c|}{reserved} & rlfp & rsp & rtp & rip \\
 \hline
 		\end{tabular}
 	}
@@ -95,13 +98,21 @@ Registers are categorised into two categories:
 	\item \textbf{Local} registers are stored in the \emph{register frame} and their address and/or value depends on the current \emph{frame pointer}
 \end{itemize}
 
-\subsection{Frame registers}
-\section{Register set}
 \subsection{Pointer registers}
 \subsubsection{rfp - frame pointer}
 {\small \textit{Availability: Global}}
 
 Stores the address to the current \emph{register frame}
+
+\subsubsection{rrap - interrupt routine array pointer}
+{\small \textit{Availability: Global}}
+
+Stores the address to the current \hyperref[ir:ARRAY]{Interrupt Routine Array}. Set by the system to indicate which IRA the CPU should use for interrupt handling
+
+\subsubsection{rlfp - last frame pointer}
+{\small \textit{Availability: Local}}
+
+Stores the address to the previous \emph{register frame}. Used when returning from interrupt routines
 
 \subsubsection{rip - instruction pointer}
 {\small \textit{Availability: Local}}
@@ -172,6 +183,117 @@ Always 0. Writes are ignored
 
 \subsubsection{r15}
 {\small \textit{Availability: Local}}
+
+\section{Interrupts}
+Interrupts are handled by the CPU after every execute cycle of a single instruction. The CPU checks if any interrupts were raised after executing the instruction and, if so, checks and picks the correct \hyperref[ir:HANDLER]{Interrupt Routine Handler} from the current \hyperref[ir:ARRAY]{Interrupt Routine Array} to handle the raised interrupt.
+
+If the \verb|enable| bit of the IRA entry is not set, the interrupt is not handled in software, but the exact behaviour depends on the type of the raised interrupt. \\
+
+There are three types of interrupts:
+
+\begin{table}[H]
+	\centering
+	%\resizebox{\linewidth}{!}
+	{
+		\begin{tabular}{|c|c|c|c|c|}
+\hline
+Type & SW & HW & Recoverable & Pauses execution \\
+\hline
+Signal & \cmark & \cmark & \cmark & \xmark \\
+\hline
+Trap & \cmark & \cmark & \cmark & \cmark \\
+\hline
+Fault & \xmark & \cmark & \xmark & \cmark \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\begin{itemize}
+	\item \emph{Signal} interrupts do not pause execution and do not have to be explicitly handled in any way. This type of interrupt is recommended for general hardware-software communication.
+	\item Raised \emph{trap} interrupts are most commonly recoverable errors and will pause execution of the frame that the trap occurred in if no valid IRH was found to handle the raised interrupt.
+	\item Raised \emph{fault} interrupts are non-recoverable and reset the CPU upon existing from the IRH or if no valid handler was found. These cannot be raised manually from software.
+\end{itemize}
+
+Upon startup the \emph{power-on program} must set the \verb|rrap| register to a new empty, zero-filled IRA. Upon taking control, the operating system should allocate its own IRA, filling it with whatever entries are necessary to handle wanted interrupts, and set the value of \verb|rrap| to the address of said IRA.
+
+\subsection{Interrupt List}
+\begin{table}[H]
+	\centering
+	%\resizebox{\linewidth}{!}
+	{
+		\begin{tabular}{|c|c|c|c|c|}
+\hline
+ID & Mnemonic & Name & Type & Notes \\
+\hline
+0x00 & \#UDO & Undefined Opcode & Trap & \\
+\hline
+0x01 & \#DBG & Debug & Trap & \\
+\hline
+0x02 & \#BRK & Breakpoint & Trap & \\
+\hline
+0x03 & \#IOP & Invalid Operation & Trap & ... \\
+\hline
+0x04 & \#DBZ & Division By Zero & Trap & \\
+\hline
+0x05 & & & & \\
+.. & & & & reserved \\
+0x1F & & & & \\
+\hline
+0x20 & & & & \\
+.. & & & & user-defined \\
+0xFF & & & & \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\subsection{Interrupt Routine Array} \label{ir:ARRAY}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|}
+\hline
+Offset & Value \\
+\hline
+0x00 & Entry for INT 0x00 \\
+\hline
+0x0C & Entry for INT 0x01 \\
+\hline
+0x18 & Entry for INT 0x02 \\
+\hline
+... & ... \\
+\hline
+0xBF4 & Entry for INT 0xFF \\
+\hline
+\multicolumn{2}{|c|}{0xC00} \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\subsubsection{Interrupt Routine Array Entry}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|c|c|}
+\hline
+95..64 & 63..32 & 31..1 & 0 \\
+\hline
+\&rp & \&rfp & -- & en \\
+\hline
+Interrupt Routine Handler & Register Frame & Reserved & Enabled \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\subsection{Interrupt Routine Handler} \label{ir:HANDLER}
+Interrupt Routine Handlers (IRH) are user-defined procedures that respond to a specific interrupt raised by the CPU. IRs have their own \emph{register frame} and can access the previous \emph{register frame} via its address located in the \verb|rlfp| register.
+
+IRHs can exit at any time and resume execution by setting the current \emph{register frame} to the previous \emph{register frame}: \verb|mov rfp, rlfp|. For non-recoverable interrupts this will result in the CPU being reset.
+
+\subsection{User-defined interrupts}
 
 \section{Structures}
 \subsection{CPUID} \label{st:CPUID}

@@ -11,8 +11,8 @@
 
 %opening
 \title{
-	$SiR^2ENA$ \\
-	\small Simple Register-Register Extensible Neumann Architecture \\
+	$SiER^2NA$ \\
+	\small Simple Extensible Register-Register Neumann Architecture \\
 	\large Instruction Set Architecture \\
 	\large 1.0
 }
@@ -441,7 +441,7 @@ result = a * b
 	{Divides the value of \emph{a} by the value of \emph{b} stores the result in \emph{result}
 		\begin{itemize}
 			\item Fractional results are truncated towards 0
-			\item Division by 0 throws a DIVISION BY ZERO exception
+			\item Division by 0 raises \textbf{\#DBZ}
 		\end{itemize}
 	}
 \begin{lstlisting}
@@ -517,11 +517,30 @@ a = a << zext16(n)
 a = a >> zext16(n)
 \end{lstlisting}
 
-\subsubsection{shri - arithmetic (signed) shift right immediate}
+\subsubsection{shsri - arithmetic (signed) shift right immediate}
 \opi{0x00}{0x17}{a}{n}{0x02}
 	{Shifts the value of \emph{a} in-place right by \emph{n} places, sign-replicating the result}
 \begin{lstlisting}
 a = a >> (a >> zext16(n)) | (a >> zext16(n) >> (31 - zext16(n)) << 31)
 \end{lstlisting}
 
+\subsection{Interrupt control}
+\subsubsection{int - raise software interrupt}
+\opr{0x00}{0x18}{id}{--}{--}{--}
+	{Raises a software interrupt}
+
+\subsubsection{inti - raise software interrupt immediate}
+\opi{0x00}{0x19}{id}{--}{--}
+	{Raises a software interrupt}
+
+\subsubsection{intm - mask interrupt}
+\opr{0x00}{0x1A}{id}{enable}{--}{--}
+	{If \emph{enable} is non-zero masks an interrupt, telling the CPU not to handle it through a \hyperref[CPU-ir:HANDLER]{Interrupt Routine Handler}. Otherwise, (re-)enables it.}
+\begin{lstlisting}
+if enable {
+	rrap[id * 0xC] = rrap[id * 0xC] | 1
+} else {
+	rrap[id * 0xC] = rrap[id * 0xC] & ~1
+}
+\end{lstlisting}
 \end{document}
