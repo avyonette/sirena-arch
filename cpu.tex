@@ -332,6 +332,135 @@ IRHs can exit at any time and resume execution by calling \verb|reti|. For non-r
 \subsection{User-defined interrupts}
 % TODO
 
+\section{Memory management}
+\subsection{Paging}
+The SiERNA architecture utilises \emph{paging} as its technique for memory protection and virtual address space mapping. A single page spans \textbf{4 KiB} (0x1000) of physical memory.
+
+The page table is a 3-level structure; the full 32-bit physical address space (0xFFFF FFFF) is encapsulated by a level-1 page directory which contains 256 entries, each pointing to a level-2 page directory (or 0). A level-2 page directory contains 256 entries, each pointing to a page table (or 0). Every page table entry (page descriptor) then describes the page as well as its physical address.
+
+% split into 256 (0x100) level-1 page directories, each of switch addresses a level-2 page directory. A level-2 page directory then stores 256 entries, each addressing a page table. Finally, each page table addresses 16 individual pages (page descriptors).
+
+\subsubsection{Page Directory}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|}
+\hline
+Offset & Value \\
+\hline
+0x00 & Entry 0 \\
+\hline
+0x04 & Entry 1 \\
+\hline
+0x08 & Entry 2 \\
+\hline
+... & ... \\
+\hline
+0x3FC & Entry 255 \\
+\hline
+\multicolumn{2}{|c|}{0x400} \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\subsubsection{Page Directory Entry}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|}
+\hline
+31..0 \\
+\hline
+\&adr \\
+\hline
+Physical page directory/table address \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\subsubsection{Page Table}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|}
+\hline
+Offset & Value \\
+\hline
+0x00 & Descriptor 0 \\
+\hline
+0x08 & Descriptor 1 \\
+\hline
+0x10 & Descriptor 2 \\
+\hline
+... & ... \\
+\hline
+0x78 & Descriptor 15 \\
+\hline
+\multicolumn{2}{|c|}{0x80} \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\subsubsection{Page Descriptor}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|}
+\hline
+31..12 & 11..0 \\
+\hline
+\&adr & -- \\
+\hline
+Physical page address & Reserved \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+% \subsection{Partitioning}
+% The SiERNA architecture utilises so-called \emph{memory partitioning} for protection and virtual address spaces. It can be thought of as an equivalent to segmentation on the x86.
+%
+% \subsubsection{Partition Descriptor Node}
+% \begin{table}[H]
+% 	\centering
+% 	{
+% 		\begin{tabular}{|c|c|}
+% \hline
+% 63..32 & 31..0 \\
+% \hline
+% \&nx & \&vl \\
+% \hline
+% Next & Value \\
+% \hline
+% 		\end{tabular}
+% 	}
+% \end{table}
+%
+% Value points to the PD that this node describes.
+%
+% Next points to the next value. Can be 0.
+%
+% \subsubsection{Partition Descriptor}
+% \begin{table}[H]
+% 	\centering
+% 	{
+% 		\begin{tabular}{|c|c|c|}
+% \hline
+% 95..64 & 63..32 & 31..0 \\
+% \hline
+% -- & \&li & \&bs \\
+% \hline
+% Reserved & Limit & Base \\
+% \hline
+% 		\end{tabular}
+% 	}
+%\end{table}
+
+\subsection{Virtual memory}
+
 \section{Structures}
 \subsection{CPUID} \label{st:CPUID}
 
