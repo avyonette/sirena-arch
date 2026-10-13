@@ -58,7 +58,7 @@ rfo1 & rfo0 & rfi1 & rfi0 & \multicolumn{4}{|c|}{reserved} \\
 \hline
 767..736 & 735..704 & 703..672 & 671..640 & 639..608 & 607..576 & 575..544 & 543..512 \\
 \hline
-\multicolumn{4}{|c|}{reserved} & rlfp & rsp & rtp & rip \\
+\multicolumn{3}{|c|}{reserved} & rpdp & rlfp & rsp & rtp & rip \\
 \hline
 		\end{tabular}
 	}
@@ -128,6 +128,11 @@ Stores the address of the instruction that called the current procedure
 {\small \textit{Availability: Local}}
 
 Stores the address of the current stack frame
+
+\subsubsection{rpdp - page directory pointer}
+{\small \textit{Availability: Local}}
+
+Stores the physical address of the level-0 page directory structure
 
 \subsection{Restricted purpose}
 \subsubsection{rz - zero register}
@@ -236,7 +241,7 @@ Fault & \xmark & \cmark & \xmark & \cmark \\
 	\item Raised \emph{fault} interrupts are non-recoverable and reset the CPU upon existing from the IRH or if no valid handler was found. These cannot be raised manually from software.
 \end{itemize}
 
-Upon startup the \emph{power-on program} must set the \verb|rrap| register to a new empty, zero-filled IRA. Upon taking control, the operating system should allocate its own IRA, filling it with whatever entries are necessary to handle wanted interrupts, and set the value of \verb|rrap| to the address of said IRA.
+Upon startup the \emph{bootup late initialisation program} sets the \verb|rrap| register to a new empty, zeroed IRA. Upon taking control, the \emph{target program} should allocate its own IRA, filling it with whatever entries are necessary to handle wanted interrupts, and set the value of \verb|rrap| to the address of said IRA.
 
 \subsection{Interrupt List}
 \begin{table}[H]
@@ -257,7 +262,9 @@ ID & Mnemonic & Name & Type & Notes \\
 \hline
 0x04 & \#DBZ & Division By Zero & Trap & \\
 \hline
-0x05 & & & & \\
+0x05 & \#PLE & Page Look-up Error & Trap & See \ref{ir:PLE} \\
+\hline
+0x06 & & & & \\
 .. & & & & reserved \\
 0x1F & & & & \\
 \hline
@@ -280,6 +287,36 @@ The \emph{Invalid Operation} interrupt sets the \verb|rfo0| register accordingly
 rfo0 & Operation \\
 \hline
 % TODO
+		\end{tabular}
+	}
+\end{table}
+
+\subsubsection{\#PLE Page Look-up Error} \label {ir:PLE}
+% TODO
+Raised by the MMU when an error occurs during the look-up of a requested page.
+
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|}
+\hline
+rfo0 \\
+\hline
+Address of the faulting page \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|}
+\hline
+rfo1 & Description \\
+\hline
+0x00 & Page not found \\
+\hline
 		\end{tabular}
 	}
 \end{table}
@@ -334,13 +371,13 @@ IRHs can exit at any time and resume execution by calling \verb|reti|. For non-r
 
 \section{Memory management}
 \subsection{Paging}
-The SiERNA architecture utilises \emph{paging} as its technique for memory protection and virtual address space mapping. A single page spans \textbf{4 KiB} (0x1000) of physical memory.
+The SiERNA architecture utilises \emph{paging} as its technique for memory protection and virtual address space mapping. A single page spans \textbf{4 KiB} (\verb|0x1000|) of physical memory.
 
-The page table is a 3-level structure; the full 32-bit physical address space (0xFFFF FFFF) is encapsulated by a level-1 page directory which contains 256 entries, each pointing to a level-2 page directory (or 0). A level-2 page directory contains 256 entries, each pointing to a page table (or 0). Every page table entry (page descriptor) then describes the page as well as its physical address.
-
-% split into 256 (0x100) level-1 page directories, each of switch addresses a level-2 page directory. A level-2 page directory then stores 256 entries, each addressing a page table. Finally, each page table addresses 16 individual pages (page descriptors).
+The page table is a 3-level nested structure; the full 32-bit virtual address space (0x0000 0000 - 0xFFFF FFFF) is encapsulated by a level-0 page directory which contains 256 entries, each pointing to a level-1 page directory (or 0). A level-1 page directory contains 256 entries, each pointing to a page table (or 0). Every page table entry (page descriptor) then describes the page as well as its physical address. This allows for mapping the entire address range without unnecessarily wasting too much memory for paging structures in situations that do not need the entire address range mapped.
 
 \subsubsection{Page Directory}
+The page directory is an linear array of 256 page directory entries
+
 \begin{table}[H]
 	\centering
 	{
@@ -365,22 +402,28 @@ Offset & Value \\
 \end{table}
 
 \subsubsection{Page Directory Entry}
+The page directory entry specifies where in physical memory the targeted page directory or page table is located and its flags
+
 \begin{table}[H]
 	\centering
 	{
-		\begin{tabular}{|c|}
+		\begin{tabular}{|c|c|c|}
 \hline
-31..0 \\
+31..4 & 3..1 & 0 \\
 \hline
-\&adr \\
+\&adr & -- & p \\
 \hline
-Physical page directory/table address \\
+Physical page directory/table address[31:4] & Reserved & Present \\
 \hline
 		\end{tabular}
 	}
 \end{table}
 
+NOTE: \verb|adr| and the target structure \textbf{must} be \verb|0x10| aligned
+
 \subsubsection{Page Table}
+The page table is a linear array of 16 page descriptors
+
 \begin{table}[H]
 	\centering
 	{
@@ -390,21 +433,23 @@ Offset & Value \\
 \hline
 0x00 & Descriptor 0 \\
 \hline
-0x08 & Descriptor 1 \\
+0x04 & Descriptor 1 \\
 \hline
-0x10 & Descriptor 2 \\
+0x08 & Descriptor 2 \\
 \hline
 ... & ... \\
 \hline
-0x78 & Descriptor 15 \\
+0x3C & Descriptor 15 \\
 \hline
-\multicolumn{2}{|c|}{0x80} \\
+\multicolumn{2}{|c|}{0x40} \\
 \hline
 		\end{tabular}
 	}
 \end{table}
 
 \subsubsection{Page Descriptor}
+The page descriptor specifies what physical page this specific descriptor maps to, as well as permissions and other flags
+
 \begin{table}[H]
 	\centering
 	{
@@ -414,52 +459,45 @@ Offset & Value \\
 \hline
 \&adr & -- \\
 \hline
-Physical page address & Reserved \\
+Physical target page address[31:12] & Reserved \\
 \hline
 		\end{tabular}
 	}
 \end{table}
 
-% \subsection{Partitioning}
-% The SiERNA architecture utilises so-called \emph{memory partitioning} for protection and virtual address spaces. It can be thought of as an equivalent to segmentation on the x86.
-%
-% \subsubsection{Partition Descriptor Node}
-% \begin{table}[H]
-% 	\centering
-% 	{
-% 		\begin{tabular}{|c|c|}
-% \hline
-% 63..32 & 31..0 \\
-% \hline
-% \&nx & \&vl \\
-% \hline
-% Next & Value \\
-% \hline
-% 		\end{tabular}
-% 	}
-% \end{table}
-%
-% Value points to the PD that this node describes.
-%
-% Next points to the next value. Can be 0.
-%
-% \subsubsection{Partition Descriptor}
-% \begin{table}[H]
-% 	\centering
-% 	{
-% 		\begin{tabular}{|c|c|c|}
-% \hline
-% 95..64 & 63..32 & 31..0 \\
-% \hline
-% -- & \&li & \&bs \\
-% \hline
-% Reserved & Limit & Base \\
-% \hline
-% 		\end{tabular}
-% 	}
-%\end{table}
+NOTE: \verb|adr| \textbf{must} be page aligned (\verb|0x1000|)
+
+\subsubsection{Setting up paging}
+On early initialisation, the \emph{bootup late initialisation program} sets up an identity map for the low memory region (\verb|0x00000000-0x00010000|). After the \emph{target program} takes over it should set up its own page directory structure according to its needs and point its \verb|rpdp| register to the physical address of the level-0 page directory.
 
 \subsection{Virtual memory}
+The position (offset/index) of a page descriptor within the page directory as a whole determines the virtual address that gets mapped to the specific physical address that the page descriptor contains.
+
+For example, the virtual address \verb|0xABCDE000| would need a page descriptor at the 15th (\verb|(0xABCDE000 >> 12) & 15 = 14|) position of the page table located at the 206th (\verb|(0xABCDE000 >> 16) & 255 = 205|) position of a level-1 page directory, which would be addressed in the 172th (\verb|0xABCDE000 >> 24 = 171|) position of the level-0 page directory.
+
+This also translates to the last 8 bits (\verb|0xFF000000|) of the address indicating the level-1 page directory index, the previous 8 bits (\verb|0x00FF0000|) indicating the level-1 page directory index, and the previous 4 bits (\verb|0x0000F000|) indicating the page table index, with the last 12 bits being the in-page address offset as pages are aligned to (\verb|0x1000|).
+
+\subsection{Access protection}
+The nature of paging implicitly provides memory access protection features. Since, unless explicitly overriden or sharing physical pages between contexts, each context has its own virtual address space and virtual-physical address map, a malicious context cannot access memory of other contexts.
+
+\subsection{Memory Management Unit}
+The MMU is responsible for memory- and address-related operations, primarily in regard to paging and virtual address spaces.
+
+\subsubsection{Operations}
+The MMU must provide the following operations:
+
+\begin{table}[H]
+	\centering
+	\resizebox{\linewidth}{!}{
+		\begin{tabular}{|c|c|c|c|c|}
+\hline
+Mnemonic & Description & Input & Output & INT on error \\
+\hline
+tavp & Translate Page Address Virtual to Physical & page-aligned virtual address & page-aligned physical address & \hyperref[ir:PLE]{\#PLE} \\
+\hline
+		\end{tabular}
+	}
+\end{table}
 
 \section{Structures}
 \subsection{CPUID} \label{st:CPUID}
