@@ -111,6 +111,7 @@ Stores the address to the current \hyperref[ir:ARRAY]{Interrupt Routine Array}. 
 
 \subsubsection{rlfp - last frame pointer}
 {\small \textit{Availability: Local}}
+% TODO writeable only by CPU
 
 Stores the address to the previous \emph{register frame}. Used when returning from interrupt routines
 
@@ -131,6 +132,7 @@ Stores the address of the current stack frame
 
 \subsubsection{rpdp - page directory pointer}
 {\small \textit{Availability: Local}}
+% TODO writeable only by kernel
 
 Stores the physical address of the level-0 page directory structure
 
@@ -498,6 +500,22 @@ tavp & Translate Page Address Virtual to Physical & page-aligned virtual address
 		\end{tabular}
 	}
 \end{table}
+
+\section{Input/Output}
+\begin{itemize}
+	\item device bus controller scans for devices
+	\item devices report information, address ranges, possibly physical reservation if needed
+	\item device bus controller responds and creates a list of devices
+	\item each device has its own address space and virtual memory setup
+	\item this is a lot of work maybe it should be the job of the BLIP
+	\item reading/writing would require switching to the device's rpdp before doing any operations (could be done by a pseudo-instruction and some address convention in assembly e.g. 0@0xABCDEFAB would mean device 0 address space)
+	\item but this is the same issue i.e. how would you know where is the rpdp of the device that you want to access (or which device id with the convention)
+	\item perhaps something like USB vendor:product id? that is constant and always known
+	\item maybe it should be the OS's job to do this shit?
+	\item wrd [address] [device ID (32?-bit and managed list like USB vendor:product)] [value reg]
+	\item rdd [output reg] [device ID] [address]
+\end{itemize}
+
 
 \section{Structures}
 \subsection{CPUID} \label{st:CPUID}
