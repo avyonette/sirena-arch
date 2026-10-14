@@ -7,6 +7,17 @@
 \usepackage{pifont}
 \newcommand{\cmark}{\ding{51}}%
 \newcommand{\xmark}{\ding{55}}%
+\usepackage[acronym]{glossaries}
+
+\makeglossaries
+\newacronym{word}{word}{A 32-bit value}
+\newacronym{half-word}{half-word}{A 16-bit value}
+\newacronym{byte}{byte}{An 8-bit value}
+\newacronym{MMU}{MMU}{Memory Management Unit}
+\newacronym{CU}{CU}{Control Unit. Responsible for the Fetch, Decode, Execute cycle.}
+\newacronym{SPPB}{SPPB}{Simple Parallel Peripheral Bus}
+\newacronym{MMIO}{MMIO}{Memory-Mapped Input/Output}
+\newacronym{LVDS}{LVDS}{Low-voltage differential signaling}
 
 %opening
 \title{
@@ -24,11 +35,7 @@
 
 \section{Preface}
 \section{Glossary}
-\begin{itemize}
-	\item Word - 32-bit value
-	\item Half-word - 16-bit value
-	\item Byte - 8-bit value
-\end{itemize}
+\printglossaries
 
 \section{Registers}
 
@@ -266,7 +273,9 @@ ID & Mnemonic & Name & Type & Notes \\
 \hline
 0x05 & \#PLE & Page Look-up Error & Trap & See \ref{ir:PLE} \\
 \hline
-0x06 & & & & \\
+0x06 & \#MAE & Memory Access Error & Fault & See \ref{ir:MAE} \\
+\hline
+0x07 & & & & \\
 .. & & & & reserved \\
 0x1F & & & & \\
 \hline
@@ -296,6 +305,10 @@ rfo0 & Operation \\
 \subsubsection{\#PLE Page Look-up Error} \label {ir:PLE}
 % TODO
 Raised by the MMU when an error occurs during the look-up of a requested page.
+
+\subsubsection{\#MAE Memory Access Error} \label {ir:MAE}
+% TODO
+Raised by the MMU when an error occurs during memory I/O.
 
 \begin{table}[H]
 	\centering
@@ -482,11 +495,39 @@ This also translates to the last 8 bits (\verb|0xFF000000|) of the address indic
 \subsection{Access protection}
 The nature of paging implicitly provides memory access protection features. Since, unless explicitly overriden or sharing physical pages between contexts, each context has its own virtual address space and virtual-physical address map, a malicious context cannot access memory of other contexts.
 
+\subsection{Physical memory layout} \label{mm:PML}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|c|c|}
+\hline
+Start & End & Description & Type \\
+\hline
+0x0000 0000 & 0xFFFF 0000 & User DRAM & User free \\
+\hline
+0xFFFD 0000 & 0xFFFD FE00 & -- & Reserved \\
+\hline
+0xFFFD FE00 & 0xFFFE 0000 & \hyperref[SPPB]{SPPB} memory map & Restricted \\
+\hline
+0xFFFE 0000 & 0xFFFF FFFF & System BRAM & User free \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+NOTE: \emph{System RAM} is a physically separate block of memory located directly in the CPU, making it much faster to access. It is recommended for the \emph{target program} to use it over \emph{User RAM} for structures that need constant access, such as \emph{register frames}
+
 \subsection{Memory Management Unit}
-The MMU is responsible for memory- and address-related operations, primarily in regard to paging and virtual address spaces.
+The MMU is handles memory I/O operations and address routing.
+
+\begin{itemize}
+	\item For \emph{paging}, the MMU is responsible for translating virtual addresses to physical addresses
+	\item For \emph{I/O}, the MMU takes a requested physical address and acts as a \emph{multiplexer} to correctly route the I/O operation in accordance with the \hyperref[mm:PML]{physical memory layout} , performing the requested operation
+\end{itemize}
+
 
 \subsubsection{Operations}
-The MMU must provide the following operations:
+The MMU must provide the following operations for the \gls{CU}:
 
 \begin{table}[H]
 	\centering
@@ -496,6 +537,18 @@ The MMU must provide the following operations:
 Mnemonic & Description & Input & Output & INT on error \\
 \hline
 tavp & Translate Page Address Virtual to Physical & page-aligned virtual address & page-aligned physical address & \hyperref[ir:PLE]{\#PLE} \\
+\hline
+raddr8 & Read Physical Address 8 & physical address & data (byte) & \hyperref[ir:MAE]{\#MAE} \\
+\hline
+raddr16 & Read Physical Address 16 & physical address & data (half-word) & \hyperref[ir:MAE]{\#MAE} \\
+\hline
+raddr32 & Read Physical Address 32 & physical address & data (word) & \hyperref[ir:MAE]{\#MAE} \\
+\hline
+waddr8 & Write Physical Address 8 & physical address, data (byte) & -- & \hyperref[ir:MAE]{\#MAE} \\
+\hline
+waddr16 & Write Physical Address 16 & physical address, data (half-word) & -- & \hyperref[ir:MAE]{\#MAE} \\
+\hline
+waddr32 & Write Physical Address 32 & physical address, data (word) & -- & \hyperref[ir:MAE]{\#MAE} \\
 \hline
 		\end{tabular}
 	}
@@ -516,14 +569,63 @@ tavp & Translate Page Address Virtual to Physical & page-aligned virtual address
 % 	\item rdd [output reg] [device ID] [address]
 % \end{itemize}
 
-All device I/O is performed through \emph{memory mapping}, the layout of which is defined by the \emph{target program}.
+\subsection{Device I/O}
+All device I/O is performed through \gls{MMIO}, the layout of which is defined by the \emph{target program} by writing a \hyperref[SPPB:PMMT]{Peripheral Memory Map Table} to the memory region responsible for storing it (See \ref{mm:PML}).
 
-\subsection{Device Bus Controller}
-The \emph{DBC} is the primary component responsible for routing mapped physical memory addresses to their corresponding devices for CPU$\iff$Device communication as well as CPU$\iff$DRAM communication.
+\subsection{Simple Parallel Peripheral Bus} \label{SPPB}
+The \acrshort{SPPB} is a parallel data bus designed for connecting external devices with the CPU. It is design to be able to address a maximum of 16 connected devices at once with each connected device being identified by a 4-bit ID indicating the bus slot it is connected to.
 
-It maintains a list of physical pages that are device-mapped and upon memory access from the CPU it determines whether the requested page is device-mapped or not, and routes it to a device or DRAM accordingly.
+It utilises point-to-point connections for the physical communication layer.
 
-This list is managed by the \emph{target program} through the
+\subsubsection{Simple Parallel Peripheral Bus Controller}
+The \acrshort{SPPB} controller is, in principle, a multiplexer with a digital control protocol. It's responsible for routing memory I/O between the system board and connected peripherals.
+
+% Device side: data 0-7 + gnd il, signal, irq
+% Controller side: data 0-7 + gnd il, signal, device select 0-4, controller select, irq(?)
+
+\subsubsection{Peripheral Memory Map Table} \label{SPPB:PMMT}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|}
+\hline
+Offset & Value \\
+\hline
+0x00 & Entry 0 \\
+\hline
+0x04 & Entry 1 \\
+\hline
+0x08 & Entry 2 \\
+\hline
+... & ... \\
+\hline
+0x1F8 & Entry 63 \\
+\hline
+\multicolumn{2}{|c|}{0x200} \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\subsubsection{Peripheral Memory Map Entry}
+\begin{table}[H]
+	\centering
+	\resizebox{\linewidth}{!}{
+		\begin{tabular}{|c|c|c|c|c|}
+\hline
+63..44 & 43..24 & 23..20 & 19..1 & 0 \\
+\hline
+\&bs & \&lm & id & -- & p \\
+\hline
+Physical base address[31:12] & Physical limit address[31:12] & Peripheral ID & Reserved & Present \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+NOTE: Both the base and limit addresses must be \verb|0x1000| aligned.
+
+NOTE: Base address is inclusive, while limit is exclusive, i.e. $base \le addr < limit$
 
 \section{Structures}
 \subsection{CPUID} \label{st:CPUID}
