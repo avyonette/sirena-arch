@@ -502,20 +502,28 @@ tavp & Translate Page Address Virtual to Physical & page-aligned virtual address
 \end{table}
 
 \section{Input/Output}
-\begin{itemize}
-	\item device bus controller scans for devices
-	\item devices report information, address ranges, possibly physical reservation if needed
-	\item device bus controller responds and creates a list of devices
-	\item each device has its own address space and virtual memory setup
-	\item this is a lot of work maybe it should be the job of the BLIP
-	\item reading/writing would require switching to the device's rpdp before doing any operations (could be done by a pseudo-instruction and some address convention in assembly e.g. 0@0xABCDEFAB would mean device 0 address space)
-	\item but this is the same issue i.e. how would you know where is the rpdp of the device that you want to access (or which device id with the convention)
-	\item perhaps something like USB vendor:product id? that is constant and always known
-	\item maybe it should be the OS's job to do this shit?
-	\item wrd [address] [device ID (32?-bit and managed list like USB vendor:product)] [value reg]
-	\item rdd [output reg] [device ID] [address]
-\end{itemize}
+% \begin{itemize}
+% 	\item device bus controller scans for devices
+% 	\item devices report information, address ranges, possibly physical reservation if needed
+% 	\item device bus controller responds and creates a list of devices
+% 	\item each device has its own address space and virtual memory setup
+% 	\item this is a lot of work maybe it should be the job of the BLIP
+% 	\item reading/writing would require switching to the device's rpdp before doing any operations (could be done by a pseudo-instruction and some address convention in assembly e.g. 0@0xABCDEFAB would mean device 0 address space)
+% 	\item but this is the same issue i.e. how would you know where is the rpdp of the device that you want to access (or which device id with the convention)
+% 	\item perhaps something like USB vendor:product id? that is constant and always known
+% 	\item maybe it should be the OS's job to do this shit?
+% 	\item wrd [address] [device ID (32?-bit and managed list like USB vendor:product)] [value reg]
+% 	\item rdd [output reg] [device ID] [address]
+% \end{itemize}
 
+All device I/O is performed through \emph{memory mapping}, the layout of which is defined by the \emph{target program}.
+
+\subsection{Device Bus Controller}
+The \emph{DBC} is the primary component responsible for routing mapped physical memory addresses to their corresponding devices for CPU$\iff$Device communication as well as CPU$\iff$DRAM communication.
+
+It maintains a list of physical pages that are device-mapped and upon memory access from the CPU it determines whether the requested page is device-mapped or not, and routes it to a device or DRAM accordingly.
+
+This list is managed by the \emph{target program} through the
 
 \section{Structures}
 \subsection{CPUID} \label{st:CPUID}
