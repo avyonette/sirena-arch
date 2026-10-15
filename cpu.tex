@@ -581,7 +581,9 @@ It utilises point-to-point connections for the physical communication layer.
 The \acrshort{SPPB} controller is, in principle, a multiplexer with a digital control protocol. It's responsible for routing memory I/O between the system board and connected peripherals.
 
 % Device side: data 0-7 + gnd il, signal, irq
-% Controller side: data 0-7 + gnd il, signal, device select 0-4, controller select, irq(?)
+% Controller side: data 0-7 + gnd il, signal, device select 0-4, irq 0-7(?)
+
+% r/w packet: 32 bits address (offset from base) + [4 bits port ID, 1 bit reserved, 3 bit command]
 
 \subsubsection{Peripheral Memory Map Table} \label{SPPB:PMMT}
 \begin{table}[H]
@@ -611,13 +613,13 @@ Offset & Value \\
 \begin{table}[H]
 	\centering
 	\resizebox{\linewidth}{!}{
-		\begin{tabular}{|c|c|c|c|c|}
+		\begin{tabular}{|c|c|c|c|c|c|c|}
 \hline
-63..44 & 43..24 & 23..20 & 19..1 & 0 \\
+63..44 & 43..24 & 23..20 & 19..16 & 15..3 & 2..1 & 0 \\
 \hline
-\&bs & \&lm & id & -- & p \\
+\&bs & \&lm & bid & pid & -- & rw & p \\
 \hline
-Physical base address[31:12] & Physical limit address[31:12] & Peripheral ID & Reserved & Present \\
+Physical base address[31:12] & Physical limit address[31:12] & Bus ID & Port ID & Reserved & Read/Write & Present \\
 \hline
 		\end{tabular}
 	}
@@ -626,6 +628,8 @@ Physical base address[31:12] & Physical limit address[31:12] & Peripheral ID & R
 NOTE: Both the base and limit addresses must be \verb|0x1000| aligned.
 
 NOTE: Base address is inclusive, while limit is exclusive, i.e. $base \le addr < limit$
+
+NOTE: \emph{Read/write} select what I/O operation the port is used for. It can be \verb|0| for read, \verb|1| for write, or \verb|3| for both read and write.
 
 \section{Structures}
 \subsection{CPUID} \label{st:CPUID}
