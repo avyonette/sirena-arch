@@ -328,14 +328,6 @@ rfo0 & Operation \\
 % TODO
 Raised by the MMU when an error occurs during the look-up of a requested page.
 
-\subsubsection{\#MAE Memory Access Exception} \label {ir:MAE}
-% TODO
-Raised by the MMU when an error occurs during memory I/O.
-
-\subsubsection{\#GPF General Protection Error} \label {ir:GPE}
-% TODO
-Raised on unlawful access to a memory address or register.
-
 \begin{table}[H]
 	\centering
 	{
@@ -348,6 +340,14 @@ Address of the faulting page \\
 		\end{tabular}
 	}
 \end{table}
+
+\subsubsection{\#MAE Memory Access Exception} \label {ir:MAE}
+% TODO
+Raised by the MMU when an error occurs during memory I/O.
+
+\subsubsection{\#GPF General Protection Error} \label {ir:GPE}
+% TODO
+Raised on unlawful access to a memory address or register.
 
 \begin{table}[H]
 	\centering
