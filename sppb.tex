@@ -1,0 +1,434 @@
+\documentclass[a4paper,10pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{adjustbox}
+\usepackage{float}
+\usepackage{indentfirst}
+\usepackage{hyperref}
+\usepackage{pifont}
+\newcommand{\cmark}{\ding{51}}%
+\newcommand{\xmark}{\ding{55}}%
+\usepackage[acronym]{glossaries}
+
+\makeglossaries
+\newacronym{SPPB}{SPPB}{Simple Parallel Peripheral Bus}
+
+%opening
+\title{
+	$SiER^2NA$ \\
+	\small Simple Extensible Register-Register Neumann Architecture \\
+	\large Simple Parallel Peripheral Bus Reference \\
+	\large 1.0
+}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+
+\section{Preface}
+
+\section{Glossary}
+\printglossaries
+
+\section{Introduction} \label{SPPB}
+The \gls{SPPB} is a parallel data bus and control interface designed for connecting external devices with the CPU. It is design to be able to address a maximum of 16 connected devices at once with each connected device being identified by a 4-bit ID indicating the bus slot it is connected to.
+
+It utilises point-to-point connections for the physical communication layer.
+
+\section{Host Controller} \label{SPPBC}
+The \acrshort{SPPB} controller is a component of the CPU that translates memory I/O requests from the MMU to electrical signals for the \acrshort{SPPB} bridge.
+
+It internally uses a memory map that maps memory addresses to respective device ports, which is hardware-mapped as a static physical address and is accessible using standard load/store instructions.
+
+The resulting signals from the controller are outputted via GPIO on the CPU and received by the bus bridge.
+
+\begin{table}[H]
+	\centering
+	\caption{Physical interface}
+	{
+		\begin{tabular}{|c|c|}
+\hline
+GPIO pin & Description \\
+\hline
+0 & Data 0 \\
+\hline
+1 & Data 1 \\
+\hline
+2 & Data 2 \\
+\hline
+3 & Data 3 \\
+\hline
+4 & Data 4 \\
+\hline
+5 & Data 5 \\
+\hline
+6 & Data 6 \\
+\hline
+7 & Data 7 \\
+\hline
+8 & Clock \\
+\hline
+9 & Device select 0 \\
+\hline
+10 & Device select 1 \\
+\hline
+11 & Device select 2 \\
+\hline
+12 & Device select 3 \\
+\hline
+13 & Device select 4 \\
+\hline
+14 & Interrupt request \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\subsection{Peripheral Memory Map Table} \label{SPPB:PMMT}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|}
+\hline
+Offset & Value \\
+\hline
+0x00 & Entry 0 \\
+\hline
+0x04 & Entry 1 \\
+\hline
+0x08 & Entry 2 \\
+\hline
+... & ... \\
+\hline
+0x1F8 & Entry 63 \\
+\hline
+\multicolumn{2}{|c|}{0x200} \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\subsection{Peripheral Memory Map Entry}
+\begin{table}[H]
+	\centering
+	\resizebox{\linewidth}{!}{
+		\begin{tabular}{|c|c|c|c|c|c|c|}
+\hline
+63..44 & 43..24 & 23..20 & 19..16 & 15..3 & 2..1 & 0 \\
+\hline
+\&bs & \&lm & bid & pid & -- & rw & p \\
+\hline
+Physical base address[31:12] & Physical limit address[31:12] & Bus ID & Port ID & Reserved & Read/Write & Present \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+NOTE: Both the base and limit addresses must be \verb|0x1000| aligned.
+
+NOTE: Base address is inclusive, while limit is exclusive, i.e. $base \le addr < limit$
+
+NOTE: \emph{Read/write} select what I/O operation the port is used for. It can be \verb|0| for read, \verb|1| for write, or \verb|3| for both read and write.
+
+\section{Bridge} \label{SPPBB}
+The \acrshort{SPPB} bridge is, in principle, a multiplexer with a digital control protocol. It's responsible for routing memory I/O between the system board and connected peripherals.
+
+The physical interface that connects the bridge to the system board is a 2x12-pin connector.
+
+\begin{table}[H]
+	\centering
+	\caption{Physical bridge interface}
+	{
+		\begin{tabular}{|c|c|c|c|c|c|}
+\hline
+Description & \multicolumn{2}{|r|}{Pin} & \multicolumn{2}{|l|}{Pin} & Description \\
+\hline
+Ground & GND & 0 & 1 & D0 & Data 0 \\
+\hline
+Data 1 & D1 & 2 & 3 & D2 & Data 2 \\
+\hline
+Data 3 & D3 & 4 & 5 & GND & Ground \\
+\hline
+Ground & GND & 6 & 7 & D4 & Data 4 \\
+\hline
+Data 5 & D5 & 8 & 9 & D6 & Data 6 \\
+\hline
+Data 7 & D7 & 10 & 11 & GND & Ground \\
+\hline
+Ground & GND & 12 & 13 & CLK & Clock \\
+\hline
+INT select 0 & IS0 & 14 & 15 & IS1 & INT select 1 \\
+\hline
+INT select 2 & IS2 & 16 & 17 & IS3 & INT select 3 \\
+\hline
+INT select 4 & IS4 & 18 & 19 & GND & Ground \\
+\hline
+INT select 5 & IS5 & 20 & 21 & IS6 & INT select 6 \\
+\hline
+INT request & IRQ & 22 & 23 & IS7 & INT select 7 \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+Upon receiving a request packet from a \emph{host controller}, the bridge decodes the \emph{request frame} (See \ref{P:RF}), reads the port ID and bus ID and, using its multiplexer or similar, routes the packet to the specified device.
+
+Afterwards, if the request packet requires a response, it waits for the device to communicate it and is then sent directly back to the \emph{host controller}.
+
+\section{Device}
+\acrshort{SPPB} devices respond to requests from the \emph{bridge} and do not send any data on their own. They are connected to the \emph{bridge} with a 2x10-pin connector.
+
+\begin{table}[H]
+	\centering
+	\caption{Physical device interface}
+	{
+		\begin{tabular}{|c|c|c|c|c|c|}
+\hline
+Description & \multicolumn{2}{|r|}{Pin} & \multicolumn{2}{|l|}{Pin} & Description \\
+\hline
+Ground & GND & 0 & 1 & D0 & Data 0 \\
+\hline
+Data 1 & D1 & 2 & 3 & D2 & Data 2 \\
+\hline
+Data 3 & D3 & 4 & 5 & GND & Ground \\
+\hline
+Ground & GND & 6 & 7 & D4 & Data 4 \\
+\hline
+Data 5 & D5 & 8 & 9 & D6 & Data 6 \\
+\hline
+Data 7 & D7 & 10 & 11 & GND & Ground \\
+\hline
+-- & -- & 12 & 13 & -- & -- \\
+\hline
+Ground & GND & 14 & 15 & CLK & Clock \\
+\hline
+-- & -- & 16 & 17 & -- & -- \\
+\hline
+INT request & IRQ & 18 & 19 & GND & Ground \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\section{Protocol}
+\acrshort{SPPB} uses a stateless, request-response protocol. The bridge and connected devices do not send data on their own and only respond to requests by the bridge or host controller.
+
+Every request packet is preceded by a request frame, which is a 16-bit struct that specifies basic information about the request:
+
+\begin{table}[H] \label{P:RF}
+	\centering
+	\caption{Request frame structure}
+	{
+		\begin{tabular}{|c|c|c|c|}
+\hline
+15..12 & 11..8 & 7..4 & 3..0 \\
+\hline
+-- & pkt & pid & bid \\
+\hline
+Reserved & Packet ID & Port ID & Bus ID \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+As response packets get sent by the device and propagated to the bridge/controller only after receiving a request packet, they contain only data.
+\\
+
+NOTE: All addresses encoded into packets are relative from the mapped address base. For example, a read request to address \verb|0xA001 44FF| for a device port mapped at \verb|0xA000 0000-0xA100 0000| would be encoded and sent as \verb|0x0001 44FF|.
+
+\subsection{Request}
+\subsubsection{0x0 Read Byte Request}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|}
+\hline
+47..16 & 15..0 \\
+\hline
+adr & rf \\
+\hline
+Target address & Request frame (\ref{P:RF}) \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\subsubsection{0x1 Read Half-Word Request}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|}
+\hline
+47..16 & 15..0 \\
+\hline
+adr & rf \\
+\hline
+Target address & Request frame (\ref{P:RF}) \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\subsubsection{0x2 Read Word Request}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|}
+\hline
+47..16 & 15..0 \\
+\hline
+adr & rf \\
+\hline
+Target address & Request frame (\ref{P:RF}) \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\subsubsection{0x3 Write Byte}
+This request does not have a response packet
+
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|c|}
+\hline
+55..48 & 47..16 & 15..0 \\
+\hline
+d & adr & rf \\
+\hline
+Data & Target address & Request frame (\ref{P:RF}) \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\subsubsection{0x4 Write Half-Word}
+This request does not have a response packet
+
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|c|}
+\hline
+63..48 & 47..16 & 15..0 \\
+\hline
+d & adr & rf \\
+\hline
+Data & Target address & Request frame (\ref{P:RF}) \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\subsubsection{0x5 Write Word}
+This request does not have a response packet
+
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|c|}
+\hline
+79..48 & 47..16 & 15..0 \\
+\hline
+d & adr & rf \\
+\hline
+Data & Target address & Request frame (\ref{P:RF}) \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\subsubsection{0x6 Interrupt Information Request} \label{P:IIRQ}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|c|}
+\hline
+15..0 \\
+\hline
+rf \\
+\hline
+Request frame (\ref{P:RF}) \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\subsection{Response}
+\subsubsection{0x0 Read Byte Response}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|}
+\hline
+7..0 \\
+\hline
+d \\
+\hline
+Data \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\subsubsection{0x1 Read Half-Word Response}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|}
+\hline
+15..0 \\
+\hline
+d \\
+\hline
+Data \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\subsubsection{0x2 Read Word Response}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|}
+\hline
+31..0 \\
+\hline
+d \\
+\hline
+Data \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\subsubsection{0x6 Interrupt Information Response}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|c|}
+\hline
+23..16 & 15..0 \\
+\hline
+int & rf \\
+\hline
+Interrupt ID & Request frame (\ref{P:RF}) \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+If the device did not raise any interrupt, \verb|int| is 0.
+
+\section{Interrupts}
+Interrupts are first handled within the device-bridge loop before being sent to the CPU as a binary selector.
+
+Whenever a connected device wants to raise an interrupt, it communicates the need to do so by pulling the \verb|IRQ| pin HIGH on the bridge. After every operation the \emph{bridge} checks the status of the \verb|IRQ| bin and, if it's detected HIGH, it sents out a \hyperref[P:IIRQ]{Interrupt Information Request} packet to every connected device in an unspecified order, propagating the interrupt request to the CPU after decoding the response packet and if \verb|int| is not zero. The \verb|IRQ| pin is then cleared by the requesting device after receiving the IIRQ packet.
+
+% TODO there are kinda 2 ways to do this; this one would mean that if some device is constantly raising interrupts then it will stall/drown the others unless the bridge uses some kind of random queue instead of going from 0 to 15, the other option is going through the loop until IRQ is cleared, but that means that a rogue device could stall the bridge and system forever. all-in-all this is probably the better option and has a simple way to solve it
+If \verb|IRQ| is still HIGH after receiving a non-zero interrupt ID, i.e. more than one device wants to raise an interrupt at the same time, the \emph{bridge} completes a single request from the \emph{host controller} before going through the same process.
+
+\end{document}

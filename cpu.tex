@@ -8,6 +8,9 @@
 \newcommand{\cmark}{\ding{51}}%
 \newcommand{\xmark}{\ding{55}}%
 \usepackage[acronym]{glossaries}
+\usepackage{xr}
+
+\externaldocument[SPPB-]{sppb}
 
 \makeglossaries
 \newacronym{word}{word}{A 32-bit value}
@@ -261,21 +264,23 @@ Upon startup the \emph{bootup late initialisation program} sets the \verb|rrap| 
 \hline
 ID & Mnemonic & Name & Type & Notes \\
 \hline
-0x00 & \#UDO & Undefined Opcode & Trap & \\
+0x00 & -- & Reserved & -- & -- \\
 \hline
-0x01 & \#DBG & Debug & Trap & \\
+0x01 & \#UDO & Undefined Opcode & Trap & \\
 \hline
-0x02 & \#BRK & Breakpoint & Trap & \\
+0x02 & \#DBG & Debug & Trap & \\
 \hline
-0x03 & \#IOP & Invalid Operation & Trap & See \ref{ir:IOP} \\
+0x03 & \#BRK & Breakpoint & Trap & \\
 \hline
-0x04 & \#DBZ & Division By Zero & Trap & \\
+0x04 & \#IOP & Invalid Operation & Trap & See \ref{ir:IOP} \\
 \hline
-0x05 & \#PLE & Page Look-up Error & Trap & See \ref{ir:PLE} \\
+0x05 & \#DBZ & Division By Zero & Trap & \\
 \hline
-0x06 & \#MAE & Memory Access Error & Fault & See \ref{ir:MAE} \\
+0x06 & \#PLE & Page Look-up Error & Trap & See \ref{ir:PLE} \\
 \hline
-0x07 & & & & \\
+0x07 & \#MAE & Memory Access Error & Fault & See \ref{ir:MAE} \\
+\hline
+0x08 & & & & \\
 .. & & & & reserved \\
 0x1F & & & & \\
 \hline
@@ -507,7 +512,7 @@ Start & End & Description & Type \\
 \hline
 0xFFFD 0000 & 0xFFFD FE00 & -- & Reserved \\
 \hline
-0xFFFD FE00 & 0xFFFE 0000 & \hyperref[SPPB]{SPPB} memory map & Restricted \\
+0xFFFD FE00 & 0xFFFE 0000 & \hyperref[SPPB-SPPB:PMMT]{SPPBC} memory map & Restricted \\
 \hline
 0xFFFE 0000 & 0xFFFF FFFF & System BRAM & User free \\
 \hline
@@ -515,6 +520,7 @@ Start & End & Description & Type \\
 	}
 \end{table}
 
+% TODO change this wording here cause ugh
 NOTE: \emph{System RAM} is a physically separate block of memory located directly in the CPU, making it much faster to access. It is recommended for the \emph{target program} to use it over \emph{User RAM} for structures that need constant access, such as \emph{register frames}
 
 \subsection{Memory Management Unit}
@@ -554,82 +560,7 @@ waddr32 & Write Physical Address 32 & physical address, data (word) & -- & \hype
 	}
 \end{table}
 
-\section{Input/Output}
-% \begin{itemize}
-% 	\item device bus controller scans for devices
-% 	\item devices report information, address ranges, possibly physical reservation if needed
-% 	\item device bus controller responds and creates a list of devices
-% 	\item each device has its own address space and virtual memory setup
-% 	\item this is a lot of work maybe it should be the job of the BLIP
-% 	\item reading/writing would require switching to the device's rpdp before doing any operations (could be done by a pseudo-instruction and some address convention in assembly e.g. 0@0xABCDEFAB would mean device 0 address space)
-% 	\item but this is the same issue i.e. how would you know where is the rpdp of the device that you want to access (or which device id with the convention)
-% 	\item perhaps something like USB vendor:product id? that is constant and always known
-% 	\item maybe it should be the OS's job to do this shit?
-% 	\item wrd [address] [device ID (32?-bit and managed list like USB vendor:product)] [value reg]
-% 	\item rdd [output reg] [device ID] [address]
-% \end{itemize}
-
-\subsection{Device I/O}
-All device I/O is performed through \gls{MMIO}, the layout of which is defined by the \emph{target program} by writing a \hyperref[SPPB:PMMT]{Peripheral Memory Map Table} to the memory region responsible for storing it (See \ref{mm:PML}).
-
-\subsection{Simple Parallel Peripheral Bus} \label{SPPB}
-The \acrshort{SPPB} is a parallel data bus designed for connecting external devices with the CPU. It is design to be able to address a maximum of 16 connected devices at once with each connected device being identified by a 4-bit ID indicating the bus slot it is connected to.
-
-It utilises point-to-point connections for the physical communication layer.
-
-\subsubsection{Simple Parallel Peripheral Bus Controller}
-The \acrshort{SPPB} controller is, in principle, a multiplexer with a digital control protocol. It's responsible for routing memory I/O between the system board and connected peripherals.
-
-% Device side: data 0-7 + gnd il, signal, irq
-% Controller side: data 0-7 + gnd il, signal, device select 0-4, irq 0-7(?)
-
-% r/w packet: 32 bits address (offset from base) + [4 bits port ID, 1 bit reserved, 3 bit command]
-
-\subsubsection{Peripheral Memory Map Table} \label{SPPB:PMMT}
-\begin{table}[H]
-	\centering
-	{
-		\begin{tabular}{|c|c|}
-\hline
-Offset & Value \\
-\hline
-0x00 & Entry 0 \\
-\hline
-0x04 & Entry 1 \\
-\hline
-0x08 & Entry 2 \\
-\hline
-... & ... \\
-\hline
-0x1F8 & Entry 63 \\
-\hline
-\multicolumn{2}{|c|}{0x200} \\
-\hline
-		\end{tabular}
-	}
-\end{table}
-
-\subsubsection{Peripheral Memory Map Entry}
-\begin{table}[H]
-	\centering
-	\resizebox{\linewidth}{!}{
-		\begin{tabular}{|c|c|c|c|c|c|c|}
-\hline
-63..44 & 43..24 & 23..20 & 19..16 & 15..3 & 2..1 & 0 \\
-\hline
-\&bs & \&lm & bid & pid & -- & rw & p \\
-\hline
-Physical base address[31:12] & Physical limit address[31:12] & Bus ID & Port ID & Reserved & Read/Write & Present \\
-\hline
-		\end{tabular}
-	}
-\end{table}
-
-NOTE: Both the base and limit addresses must be \verb|0x1000| aligned.
-
-NOTE: Base address is inclusive, while limit is exclusive, i.e. $base \le addr < limit$
-
-NOTE: \emph{Read/write} select what I/O operation the port is used for. It can be \verb|0| for read, \verb|1| for write, or \verb|3| for both read and write.
+How the MMU communicates with other internal CPU components is up to the specific implementation.
 
 \section{Structures}
 \subsection{CPUID} \label{st:CPUID}
