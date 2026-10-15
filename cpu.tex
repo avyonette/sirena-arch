@@ -521,7 +521,9 @@ This also translates to the last 8 bits (\verb|0xFF000000|) of the address indic
 \subsection{Access protection}
 The nature of paging implicitly provides memory access protection features. Since, unless explicitly overriden or sharing physical pages between contexts, each context has its own virtual address space and virtual-physical address map, a malicious context cannot access memory of other contexts.
 
-\subsection{Physical memory layout} \label{mm:PML}
+\subsection{Level-0 physical memory map} \label{mm:PML}
+This map is assigned by the hardware and can not be modified.
+
 \begin{table}[H]
 	\centering
 	{
@@ -529,13 +531,15 @@ The nature of paging implicitly provides memory access protection features. Sinc
 \hline
 Start & End & Description & Type \\
 \hline
-0x0000 0000 & 0xFFF0 0000 & User DRAM & User free \\
+0x0000 0000 & 0xFFF0 0000 & User DRAM & User \\
 \hline
 0xFFF0 0000 & 0xFFFD FE00 & -- & Reserved \\
 \hline
-0xFFFD FE00 & 0xFFFE 0000 & \hyperref[SPPB-SPPB:PMMT]{SPPBC} memory map & Restricted \\
+0xFFFD FC00 & 0xFFFD FE00 & \hyperref[SPPB-SPPB:PMMT]{SPPBC} memory map & Supervisor \\
 \hline
-0xFFFE 0000 & 0xFFFF FFFF & System BRAM & User free \\
+0xFFFD FE00 & 0xFFFE 0000 & Level-1 memory map (\ref{mm:PML1}) & Supervisor \\
+\hline
+0xFFFE 0000 & 0xFFFF FFFF & System BRAM & Supervisor \\
 \hline
 		\end{tabular}
 	}
@@ -543,6 +547,68 @@ Start & End & Description & Type \\
 
 % TODO change this wording here cause ugh
 NOTE: \emph{System RAM} is a physically separate block of memory located directly in the CPU, making it much faster to access. It is recommended for the \emph{target program} to use it over \emph{User RAM} for structures that need constant access, such as \emph{register frames}
+
+\subsection{Level-1 physical memory map} \label{mm:PML1}
+This map routes addresses within \emph{User}-designated spaces to optional interface host controllers, such as the \hyperref[SPPB-SPPB:PMMT]{SPPBC}. It must be programmed by the supervisor alongside interface-specific structures for the MMU to be able to discern \emph{regular} memory addresses from addresses designated for use with \gls{MMIO}.
+
+By default, all addresses are mapped to \emph{User RAM}. It can map up to 64 address ranges total. All addresses must be \verb|0x1000|-aligned.
+
+\begin{table}[H]
+	\centering
+	\caption{Level-1 memory map table}
+	{
+		\begin{tabular}{|c|c|}
+\hline
+Offset & Value \\
+\hline
+0x00 & Entry 0 \\
+\hline
+0x08 & Entry 1 \\
+\hline
+0x10 & Entry 2 \\
+\hline
+... & ... \\
+\hline
+0x1F8 & Entry 63 \\
+\hline
+\multicolumn{2}{|c|}{0x200} \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\begin{table}[H]
+	\centering
+	\caption{Level-1 memory map table entry}
+	{
+		\begin{tabular}{|c|c|c|c|}
+\hline
+63..44 & 43..24 & 23..4 & 3..0 \\
+\hline
+\&bs & \&lm & -- & tg \\
+\hline
+Base address[31:12] & Limit address[31:12] & Reserved & Target \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+Where \emph{target} must be one of the following:
+
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|}
+\hline
+Value & Description \\
+\hline
+0x0 & None \\
+\hline
+0x1 & \hyperref[SPPB-SPPBC]{SPPB controller} \\
+\hline
+		\end{tabular}
+	}
+\end{table}
 
 \subsection{Memory Management Unit}
 The MMU is handles memory I/O operations and address routing.
