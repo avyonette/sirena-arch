@@ -112,16 +112,19 @@ Registers are categorised into two categories:
 \subsubsection{rfp - frame pointer}
 {\small \textit{Availability: Global}}
 
+{\small \textit{Write-restricted}}
+
 Stores the address to the current \emph{register frame}
 
 \subsubsection{rrap - interrupt routine array pointer}
 {\small \textit{Availability: Global}}
 
-Stores the address to the current \hyperref[ir:ARRAY]{Interrupt Routine Array}. Set by the system to indicate which IRA the CPU should use for interrupt handling
+Stores the address to the current \hyperref[ir:ARRAY]{Interrupt Routine Array}. Set by the supervisor to indicate which IRA the CPU should use for interrupt handling
 
 \subsubsection{rlfp - last frame pointer}
 {\small \textit{Availability: Local}}
-% TODO writeable only by CPU
+
+{\small \textit{Read-only}}
 
 Stores the address to the previous \emph{register frame}. Used when returning from interrupt routines
 
@@ -142,7 +145,8 @@ Stores the address of the current stack frame
 
 \subsubsection{rpdp - page directory pointer}
 {\small \textit{Availability: Local}}
-% TODO writeable only by kernel
+
+{\small \textit{Write-restricted}}
 
 Stores the physical address of the level-0 page directory structure
 
@@ -150,7 +154,16 @@ Stores the physical address of the level-0 page directory structure
 \subsubsection{rz - zero register}
 {\small \textit{Availability: Global}}
 
-Always 0. Writes are ignored
+{\small \textit{Read-only}}
+
+Always 0
+
+\subsubsection{rpl - current privilege level}
+{\small \textit{Availability: Global}}
+
+{\small \textit{Write-restricted}}
+
+Stores the current privilege level
 
 \subsection{General purpose}
 \subsubsection{r0}
@@ -278,9 +291,11 @@ ID & Mnemonic & Name & Type & Notes \\
 \hline
 0x06 & \#PLE & Page Look-up Error & Trap & See \ref{ir:PLE} \\
 \hline
-0x07 & \#MAE & Memory Access Error & Fault & See \ref{ir:MAE} \\
+0x07 & \#MAE & Memory Access Exception & Fault & See \ref{ir:MAE} \\
 \hline
-0x08 & & & & \\
+0x08 & \#GPE & General Protection Error & Trap & See \ref{ir:GPE} \\
+\hline
+0x09 & & & & \\
 .. & & & & reserved \\
 0x1F & & & & \\
 \hline
@@ -311,9 +326,13 @@ rfo0 & Operation \\
 % TODO
 Raised by the MMU when an error occurs during the look-up of a requested page.
 
-\subsubsection{\#MAE Memory Access Error} \label {ir:MAE}
+\subsubsection{\#MAE Memory Access Exception} \label {ir:MAE}
 % TODO
 Raised by the MMU when an error occurs during memory I/O.
+
+\subsubsection{\#GPF General Protection Error} \label {ir:GPE}
+% TODO
+Raised on unlawful access to a memory address or register.
 
 \begin{table}[H]
 	\centering
@@ -473,13 +492,13 @@ The page descriptor specifies what physical page this specific descriptor maps t
 \begin{table}[H]
 	\centering
 	{
-		\begin{tabular}{|c|c|}
+		\begin{tabular}{|c|c|c|c|}
 \hline
-31..12 & 11..0 \\
+31..12 & 11..3 & 2..1 & 0 \\
 \hline
-\&adr & -- \\
+\&adr & -- & pl & p \\
 \hline
-Physical target page address[31:12] & Reserved \\
+Physical target page address[31:12] & Reserved & Privilege level & Present \\
 \hline
 		\end{tabular}
 	}
@@ -561,6 +580,27 @@ waddr32 & Write Physical Address 32 & physical address, data (word) & -- & \hype
 \end{table}
 
 How the MMU communicates with other internal CPU components is up to the specific implementation.
+
+\section{Protection domains}
+There exist two privilege levels:
+\begin{itemize}
+	\item Level 0, \emph{user} level, is dedicated for regular user applications
+	\item Level 1, \emph{supervisor} level, is dedicated for the \emph{target program} or OS kernel
+\end{itemize}
+
+along with three primary mechanisms contributing to system/cross-program security:
+\begin{enumerate}
+	\item Some registers having restricted read-only access for level 0
+	\item Non-register I/O access to system RAM being restricted to level 1
+	\item Per-page privilege level set by the supervisor
+\end{enumerate}
+
+Enforcing privilege levels is the job of the CPU. This happens at three stages:
+\begin{enumerate}
+	\item When writing a register, the CU checks the current privilege level and, if it isn't at least level 1 and the target register is write-restricted, raises a \hyperref[ir:GPE]{\#GPE}
+	\item Upon receiving a \verb|tavp| operation, the MMU reads the current privilege level as well as the requested page's privilege level, and raises a \hyperref[ir:GPE]{\#GPE}
+	\item Upon receiving a \verb|raddr*| or \verb|waddr*| operation, the MMU checks if the provided physical address is in a restricted range. If it is, and the current privilege level is not at least level 1, it raises a \hyperref[ir:GPE]{\#GPE}
+\end{enumerate}
 
 \section{Structures}
 \subsection{CPUID} \label{st:CPUID}
