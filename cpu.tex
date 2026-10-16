@@ -81,7 +81,7 @@ rfo1 & rfo0 & rfi1 & rfi0 & \multicolumn{4}{|c|}{reserved} \\
 \hline
 767..736 & 735..704 & 703..672 & 671..640 & 639..608 & 607..576 & 575..544 & 543..512 \\
 \hline
-\multicolumn{2}{|c|}{reserved} & rcf & rpdp & rlfp & rsp & rtp & rip \\
+\multicolumn{1}{|c|}{reserved} & rpl & rcf & rpdp & rlfp & rsp & rtp & rip \\
 \hline
 		\end{tabular}
 	}
@@ -176,7 +176,7 @@ Stores the physical address of the level-0 page directory structure. If it point
 Always 0
 
 \subsubsection{rpl - current privilege level}
-{\small \textit{Availability: Global}}
+{\small \textit{Availability: Local}}
 
 {\small \textit{Write-restricted}}
 
@@ -297,10 +297,6 @@ Register & Value \\
 \hline
 r0-r15 & 0 \\
 \hline
-rfi$n$, rfo$n$ & 0 \\
-\hline
-rcf & 0 \\
-\hline
 rip & 0xFFA0 0000 \\
 \hline
 rtp & 0x0 \\
@@ -308,6 +304,14 @@ rtp & 0x0 \\
 rsp & 0x0 \\
 \hline
 rpdp & 0x0 \\
+\hline
+rcf & 0 \\
+\hline
+rpl & 1 \\
+\hline
+rfi$n$ & 0 \\
+\hline
+rfo$n$ & 0 \\
 \hline
 		\end{tabular}
 	}
@@ -325,8 +329,6 @@ Register & Value \\
 rfp & 0xFFFE 0000 \\
 \hline
 rrap & 0x0 \\
-\hline
-rpl & 1 \\
 \hline
 		\end{tabular}
 	}
@@ -542,6 +544,10 @@ rfi1 & Description \\
 \hline
 0x02 & Incorrect address alignment \\
 \hline
+0x03 & Invalid address \\
+\hline
+0x04 & Write attempted on a read-only memory region \\
+\hline
 		\end{tabular}
 	}
 \end{table}
@@ -560,6 +566,8 @@ rfi0 & Description \\
 0x00 & Incorrect privilege level \\
 \hline
 0x01 & Execute on no-execute page \\
+\hline
+0x02 & Write on read-only page \\
 \hline
 		\end{tabular}
 	}
@@ -609,14 +617,15 @@ Offset & Value \\
 \subsubsection{Interrupt Routine Array Entry}
 \begin{table}[H]
 	\centering
+	\resizebox{\linewidth}{!}
 	{
 		\begin{tabular}{|c|c|c|c|}
 \hline
 95..64 & 63..32 & 31..1 & 0 \\
 \hline
-\&rp & \&rfp & -- & en \\
+\&rh & \&rfp & -- & en \\
 \hline
-Interrupt Routine Handler & Register Frame & Reserved & Enabled \\
+Physical address of the IRH & Physical address of the register frame & Reserved & Enabled \\
 \hline
 		\end{tabular}
 	}
@@ -751,11 +760,11 @@ This map is assigned by the hardware and can not be modified.
 	{
 		\begin{tabular}{|c|c|c|c|}
 \hline
-Start & End & Description & Type \\
+Base & Limit & Description & Type \\
 \hline
 0x0000 0000 & 0x0000 1000 & -- & Reserved \\
 \hline
-0x0000 1000 & 0xFFF0 0000 & User DRAM & User \\
+0x0000 1000 & 0xFFA0 0000 & User DRAM & User \\
 \hline
 0xFFA0 0000 & 0xFFA1 0000 & \acrshort{BLIP} ROM & Firmware \\
 \hline
@@ -876,7 +885,9 @@ mwrite32 & Write Physical Address 32 & physical address, data (word) & -- & \hyp
 	}
 \end{table}
 
-As stated in \P\ref{ma}, the MMU allows only type-aligned addressing for I/O and \textbf{must} raise a \textbf{\hyperref[ir:MAE]{\#MAE}} on incorrect alignment.\\
+As stated in \P\ref{ma}, the MMU allows only type-aligned addressing for I/O and \textbf{must} raise a \textbf{\hyperref[ir:MAE]{\#MAE}} on incorrect alignment.
+
+A \textbf{\hyperref[ir:MAE]{\#MAE}} should also be raised if the CPU tries to access a restricted address range.\\
 \\
 How the MMU communicates with other internal CPU components is up to the specific implementation.
 

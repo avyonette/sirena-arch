@@ -305,7 +305,7 @@ if (cmp & 0b000100) != 0 {
 \end{lstlisting}
 
 \subsubsection{jaltu - jump absolute if less than (unsigned)}
-\opr{0x00}{0x08}{\&target}{cmp}{--}{0x02}
+\opr{0x00}{0x08}{\&target}{cmp}{--}{0x03}
 	{Sets the \emph{instruction pointer} to the value of \emph{target} if the comparison result \emph{cmp} is \textbf{LESS THAN (unsigned)}}
 \begin{lstlisting}
 if (cmp & 0b010000) != 0 {
@@ -314,7 +314,7 @@ if (cmp & 0b010000) != 0 {
 \end{lstlisting}
 
 \subsubsection{jage - jump absolute if greater or equal}
-\opr{0x00}{0x08}{\&target}{cmp}{--}{0x03}
+\opr{0x00}{0x08}{\&target}{cmp}{--}{0x04}
 	{Sets the \emph{instruction pointer} to the value of \emph{target} if the comparison result \emph{cmp} is \textbf{GREATER THAN (signed)} or \textbf{EQUAL}}
 \begin{lstlisting}
 if (cmp & 0b001000) != 0 || (cmp & 0b000001) != 0 {
@@ -323,7 +323,7 @@ if (cmp & 0b001000) != 0 || (cmp & 0b000001) != 0 {
 \end{lstlisting}
 
 \subsubsection{jageu - jump absolute if greater or equal (unsigned)}
-\opr{0x00}{0x08}{\&target}{cmp}{--}{0x04}
+\opr{0x00}{0x08}{\&target}{cmp}{--}{0x05}
 	{Sets the \emph{instruction pointer} to the value of \emph{target} if the comparison result \emph{cmp} is \textbf{GREATER THAN (unsigned)} or \textbf{EQUAL}}
 \begin{lstlisting}
 if (cmp & 0b100000) != 0 || (cmp & 0b000001) != 0 {
@@ -599,7 +599,7 @@ a = ashr32(a, zext16(n))
 \subsubsection{intm - mask interrupt}
 \opr{0x00}{0x1C}{id}{enable}{--}{--}
 	{
-		If \emph{enable} is non-zero masks an interrupt, telling the CPU not to handle it through a \hyperref[CPU-ir:HANDLER]{Interrupt Routine Handler}. Otherwise, (re-)enables it.
+		If \emph{enable} is zero masks an interrupt, telling the CPU not to handle it through a \hyperref[CPU-ir:HANDLER]{Interrupt Routine Handler}. Otherwise, (re-)enables it.
 		\\\\
 		NOTE: This instruction is restricted to \acrshort{PL} 1. Calls from \acrshort{PL} 0 will raise a \textbf{\#GPE}.
 	}
