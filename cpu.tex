@@ -906,7 +906,7 @@ Enforcing privilege levels is the job of the CPU. This happens at three stages:
 A transfer between protection level for the current \emph{frame} can be performed at at any time by the \emph{supervisor} by writing to the \verb|rpl| register or for any frame by writing to its memory directly.
 
 \section{Context switching}
-% TODO how would a user context switch back?
+% TODO how would a user context switch back? answer: via software interrupt for cooperative multitasking or external timer for preemptive multitasking
 A context switch can be performed at any time by the \emph{supervisor} by writing to the \verb|rfp| register.
 
 \section{Structures}
