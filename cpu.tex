@@ -17,10 +17,11 @@
 \newacronym{half-word}{half-word}{A 16-bit value}
 \newacronym{byte}{byte}{An 8-bit value}
 \newacronym{MMU}{MMU}{Memory Management Unit}
-\newacronym{CU}{CU}{Control Unit. Responsible for the Fetch, Decode, Execute cycle.}
+\newacronym{CU}{CU}{Control Unit}
 \newacronym{SPPB}{SPPB}{Simple Parallel Peripheral Bus}
 \newacronym{MMIO}{MMIO}{Memory-Mapped Input/Output}
-\newacronym{LVDS}{LVDS}{Low-voltage differential signaling}
+\newacronym{CPU}{CPU}{Central Processing Unit}
+\newacronym{BLIP}{BLIP}{Boot-up Late Initialisation Program}
 
 %opening
 \title{
@@ -40,9 +41,21 @@
 \section{Glossary}
 \printglossaries
 
+\section{Introduction}
+This document complements the \verb|SiERNA| computer architecture by specifications for the \gls{CPU}. It is to be used as a reference for both software and hardware developers for functions and working details of the \gls{CPU}.
+
+\subsection{Architectural details}
+\begin{itemize}
+	\item \emph{Little-endian} memory model
+	\item \emph{Paging} for memory separation
+	\item \emph{\acrshort{MMIO}} for device I/O
+	\item \emph{2-level} protection domain
+	\item \emph{Extensions} for optional features and additional instruction sets
+\end{itemize}
+
 \section{Registers}
 
-The SyrENA architecture, similarily to the TMS9900, does not store general-purpose registers on the CPU, but rather a \emph{frame pointer} that points to the address in register RAM of the current \emph{register frame} for the executing context.
+The SiERNA architecture, similarily to the TMS9900, does not store general-purpose registers on the CPU, but rather a \emph{frame pointer} that points to the address in register RAM of the current \emph{register frame} for the executing context.
 
 A \emph{register frame} refers to a (virtual) structure in RAM of 128 bytes (1024 bits) in length that stores 32 4-byte values total:
 
@@ -68,7 +81,7 @@ rfo1 & rfo0 & rfi1 & rfi0 & \multicolumn{4}{|c|}{reserved} \\
 \hline
 767..736 & 735..704 & 703..672 & 671..640 & 639..608 & 607..576 & 575..544 & 543..512 \\
 \hline
-\multicolumn{3}{|c|}{reserved} & rpdp & rlfp & rsp & rtp & rip \\
+\multicolumn{2}{|c|}{reserved} & rcf & rpdp & rlfp & rsp & rtp & rip \\
 \hline
 		\end{tabular}
 	}
@@ -102,6 +115,8 @@ r7 & r6 & r5 & r4 & r3 & r2 & r1 & r0 \\
 	}
 \end{table}
 
+\textbf{IMPORTANT: Every \emph{register frame} used by the \emph{target program} must be word-aligned and zeroed before first use.} \\
+
 Registers are categorised into two categories:
 \begin{itemize}
 	\item \textbf{Global} registers are stored directly on the CPU and their values persist between frame changes
@@ -114,21 +129,21 @@ Registers are categorised into two categories:
 
 {\small \textit{Write-restricted}}
 
-Stores the address to the current \emph{register frame}
+Stores the physical address to the current \emph{register frame}
 
 \subsubsection{rrap - interrupt routine array pointer}
 {\small \textit{Availability: Global}}
 
 {\small \textit{Write-restricted}}
 
-Stores the address to the current \hyperref[ir:ARRAY]{Interrupt Routine Array}. Set by the supervisor to indicate which IRA the CPU should use for interrupt handling
+Stores the physical address to the current \hyperref[ir:ARRAY]{Interrupt Routine Array}. Set by the supervisor to indicate which IRA the CPU should use for interrupt handling
 
 \subsubsection{rlfp - last frame pointer}
 {\small \textit{Availability: Local}}
 
 {\small \textit{Read-only}}
 
-Stores the address to the previous \emph{register frame}. Used when returning from interrupt routines
+Stores the physical address to the previous \emph{register frame}. Used when returning from interrupt routines
 
 \subsubsection{rip - instruction pointer}
 {\small \textit{Availability: Local}}
@@ -150,7 +165,7 @@ Stores the address of the current stack frame
 
 {\small \textit{Write-restricted}}
 
-Stores the physical address of the level-0 page directory structure
+Stores the physical address of the level-0 page directory structure. If it points to 0, paging is disabled.
 
 \subsection{Restricted purpose}
 \subsubsection{rz - zero register}
@@ -217,6 +232,32 @@ Stores the current privilege level
 {\small \textit{Availability: Local}}
 
 \subsection{Special registers}
+\subsubsection{rcf} \label{r:rcf}
+{\small \textit{Availability: Local}}
+
+Stores the control flags for the current execution init and output flags of ALU/FPU operations
+
+\begin{table}[H]
+	\centering
+	\caption{Available control flags}
+	\resizebox{\linewidth}{!}
+	{
+		\begin{tabular}{|c|c|c|l|}
+\hline
+Bit & Label & Name & Value \\
+\hline
+0 & SF & Sign flag & 1 if the MSB of the result is 1; 0 otherwise \\
+\hline
+1 & ZF & Zero flag & 1 if the result of an operation is zero; 0 otherwise \\
+\hline
+2 & CF & Carry flag & 1 if an addition operation produces a carry bit; 0 otherwise \\
+\hline
+3 & OF & Overflow flag & 1 if an overflow occurs during an operation; 0 otherwise \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
 \subsubsection{rfi0}
 {\small \textit{Availability: Local}}
 
@@ -237,10 +278,123 @@ Used for output flags of certain operations
 
 Used for output flags of certain operations
 
-\section{Interrupts}
-Interrupts are handled by the CPU after every execute cycle of a single instruction. The CPU checks if any interrupts were raised after executing the instruction and, if so, checks and picks the correct \hyperref[ir:HANDLER]{Interrupt Routine Handler} from the current \hyperref[ir:ARRAY]{Interrupt Routine Array} to handle the raised interrupt.
+\section{Memory access} \label{ma}
+All memory I/O requires the target address to be aligned to the boundary of the type that is being requested.
 
-If the \verb|enable| bit of the IRA entry is not set, the interrupt is not handled in software, but the exact behaviour depends on the type of the raised interrupt. \\
+This means that word I/O requires the address to be aligned to \verb|0x4|, half-word I/O requires the address to be aligned to \verb|0x2|, and byte I/O is unrestricted (\verb|0x1| alignment).
+
+On incorrect address alignment the MMU raises a \textbf{\hyperref[ir:MAE]{\#MAE}}.
+
+\section{Boot-up process}
+At power-on/reset, an initial \emph{register frame} is set up at the beginning of the \emph{system RAM} with the following values:
+
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|}
+\hline
+Register & Value \\
+\hline
+r0-r15 & 0 \\
+\hline
+rfi$n$, rfo$n$ & 0 \\
+\hline
+rcf & 0 \\
+\hline
+rip & 0xFFA0 0000 \\
+\hline
+rtp & 0x0 \\
+\hline
+rsp & 0x0 \\
+\hline
+rpdp & 0x0 \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+As well as global registers having the following default values:
+
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|}
+\hline
+Register & Value \\
+\hline
+rfp & 0xFFFE 0000 \\
+\hline
+rrap & 0x0 \\
+\hline
+rpl & 1 \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+This means that the CPU starts executing from the \emph{BLIP ROM}, which is where the \gls{BLIP} is located. How this program is accessed by the CPU is up to the specific implementation; in most cases, it will live in a separate ROM chip that the MMU can address directly.
+
+\subsection{Boot-up Late Initialisation Program}
+The function of the \acrshort{BLIP} is final hardware and device initialisation before loading and handing over control to the \emph{target program}. How the target program is discovered and loaded is up to the specific implementation.
+
+\section{Arithmetic Logic Unit}
+The ALU is a component of the CPU responsible for integer arithmetic and logical operations.
+
+\subsection{Operations} \label{alu:op}
+The ALU must provide \emph{at least} the following operations for the \gls{CU}:
+
+\begin{table}[H]
+	\centering
+	\resizebox{\linewidth}{!}
+	{
+		\begin{tabular}{|c|c|c|c|c|c|}
+\hline
+Mnemonic & Description & SF & ZF & CF & OF \\
+\hline
+iadd32c(a, b) $\to$ y & 32-bit Add integer with carry & $y>>31$ & $y=0$ & carry & sign overflow \\
+\hline
+isub32(a, b) $\to$ y & 32-bit Subtract integer & $y>>31$ & $y=0$ & borrow & sign overflow \\
+\hline
+imul32(a, b) $\to$ y & 32-bit Multiply integer & $y>>31$ & $y=0$ & 0 & 0 \\
+\hline
+and32(a, b) $\to$ y & 32-bit logical AND & $y>>31$ & $y=0$ & 0 & -- \\
+\hline
+or32(a, b) $\to$ y & 32-bit logical OR & $y>>31$ & $y=0$ & 0 & -- \\
+\hline
+xor32(a, b) $\to$ y & 32-bit logical XOR & $y>>31$ & $y=0$ & 0 & -- \\
+\hline
+lshl32(a, n) $\to$ y & 32-bit logical shift left & $y>>31$ & $y=0$ & last shifted bit & -- \\
+\hline
+lshr32(a, n) $\to$ y & 32-bit logical shift right & $y>>31$ & $y=0$ & last shifted bit & -- \\
+\hline
+ashr32(a, n) $\to$ y & 32-bit arithmetic shift right & $y>>31$ & $y=0$ & last shifted bit & -- \\
+% \hline
+% rot32(a) $\to$ y & 32-bit Rotate & $y>>31$ & $y=0$ \\
+% \hline
+% tcom32(a) $\to$ y & 32-bit Two's complement & -- & -- \\
+% \hline
+% ocom32(a) $\to$ y & 32-bit One's complement & -- & -- \\
+\hline
+sext18(a) $\to$ y & Sign-extend from bit 17 to 31 & -- & -- & -- & -- \\
+\hline
+sext16(a) $\to$ y & Sign-extend from bit 15 to 31 & -- & -- & -- & -- \\
+\hline
+sext8(a) $\to$ y & Sign-extend from bit 7 to 31 & -- & -- & -- & -- \\
+\hline
+zext16(a) $\to$ y & Zero-extend from bit 15 to 31 & -- & -- & -- & -- \\
+\hline
+zext8(a) $\to$ y & Zero-extend from bit 7 to 31 & -- & -- & -- & -- \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\section{Interrupts}
+Interrupts are handled by the CPU after every execute cycle of a single instruction. The CPU checks if any interrupts were raised after executing the instruction and, if so, checks and picks the correct \hyperref[ir:HANDLER]{Interrupt Routine Handler} from the current \hyperref[ir:ARRAY]{Interrupt Routine Array} to handle the raised interrupt, switching to the \emph{register frame} specified for the handler and filling in/out registers if necessary.
+
+If the \verb|enable| bit of the IRA entry is not set, the interrupt stops being handed over to be handled in software, but the exact behaviour depends on the type of the raised interrupt.
+
+If the \verb|rrap| register is set to 0, all interrupts except \emph{faults}, which immediately prompt a CPU reset, are ignored. \\
 
 There are three types of interrupts:
 
@@ -248,15 +402,15 @@ There are three types of interrupts:
 	\centering
 	%\resizebox{\linewidth}{!}
 	{
-		\begin{tabular}{|c|c|c|c|c|}
+		\begin{tabular}{|c|c|c|}
 \hline
-Type & SW & HW & Recoverable & Pauses execution \\
+Type & Recoverable & Unhandled pauses execution \\
 \hline
-Signal & \cmark & \cmark & \cmark & \xmark \\
+Signal & \cmark & \xmark \\
 \hline
-Trap & \cmark & \cmark & \cmark & \cmark \\
+Trap & \cmark & \cmark \\
 \hline
-Fault & \xmark & \cmark & \xmark & \cmark \\
+Fault & \xmark & \cmark \\
 \hline
 		\end{tabular}
 	}
@@ -268,9 +422,9 @@ Fault & \xmark & \cmark & \xmark & \cmark \\
 	\item Raised \emph{fault} interrupts are non-recoverable and reset the CPU upon existing from the IRH or if no valid handler was found. These cannot be raised manually from software.
 \end{itemize}
 
-Upon startup the \emph{bootup late initialisation program} sets the \verb|rrap| register to a new empty, zeroed IRA. Upon taking control, the \emph{target program} should allocate its own IRA, filling it with whatever entries are necessary to handle wanted interrupts, and set the value of \verb|rrap| to the address of said IRA.
+% Upon startup the \emph{bootup late initialisation program} sets the \verb|rrap| register to a new empty, zeroed IRA. Upon taking control, the \emph{target program} should allocate its own IRA, filling it with whatever entries are necessary to handle wanted interrupts, and set the value of \verb|rrap| to the address of said IRA.
 
-\subsection{Interrupt List}
+\subsection{Interrupt List} \label{ir:list}
 \begin{table}[H]
 	\centering
 	%\resizebox{\linewidth}{!}
@@ -298,11 +452,11 @@ ID & Mnemonic & Name & Type & Notes \\
 0x08 & \#GPE & General Protection Error & Trap & See \ref{ir:GPE} \\
 \hline
 0x09 & & & & \\
-.. & & & & reserved \\
+.. & & & & Reserved \\
 0x1F & & & & \\
 \hline
 0x20 & & & & \\
-.. & & & & user-defined \\
+.. & & & Signal & User-defined \\
 0xFF & & & & \\
 \hline
 		\end{tabular}
@@ -310,14 +464,14 @@ ID & Mnemonic & Name & Type & Notes \\
 \end{table}
 
 \subsubsection{\#IOP Invalid Operation} \label {ir:IOP}
-The \emph{Invalid Operation} interrupt sets the \verb|rfo0| register accordingly based on the type of the operation that caused the interrupt:
+The \emph{Invalid Operation} interrupt sets the \verb|rfi0| register accordingly based on the type of the operation that caused the interrupt:
 
 \begin{table}[H]
 	\centering
 	{
 		\begin{tabular}{|c|c|c|}
 \hline
-rfo0 & Operation \\
+rfi0 & Description \\
 \hline
 % TODO
 		\end{tabular}
@@ -333,9 +487,24 @@ Raised by the MMU when an error occurs during the look-up of a requested page.
 	{
 		\begin{tabular}{|c|}
 \hline
-rfo0 \\
+rfi0 \\
 \hline
-Address of the faulting page \\
+31..0 \\
+\hline
+The virtual memory address that caused the error \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|}
+\hline
+rfi1 & Description \\
+\hline
+0x00 & Page not found \\
 \hline
 		\end{tabular}
 	}
@@ -345,18 +514,69 @@ Address of the faulting page \\
 % TODO
 Raised by the MMU when an error occurs during memory I/O.
 
-\subsubsection{\#GPF General Protection Error} \label {ir:GPE}
-% TODO
-Raised on unlawful access to a memory address or register.
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|}
+\hline
+rfi0 \\
+\hline
+31..0 \\
+\hline
+The physical memory address that caused the error \\
+\hline
+		\end{tabular}
+	}
+\end{table}
 
 \begin{table}[H]
 	\centering
 	{
 		\begin{tabular}{|c|c|}
 \hline
-rfo1 & Description \\
+rfi1 & Description \\
 \hline
-0x00 & Page not found \\
+0x00 & Unknown read error \\
+\hline
+0x01 & Unknown write error \\
+\hline
+0x02 & Incorrect address alignment \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\subsubsection{\#GPE General Protection Error} \label {ir:GPE}
+% TODO
+Raised on any kind of unlawful operation.
+
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|}
+\hline
+rfi0 & Description \\
+\hline
+0x00 & Incorrect privilege level \\
+\hline
+0x01 & Execute on no-execute page \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|c|}
+\hline
+\multicolumn{3}{|c|}{rfi1} \\
+\hline
+31..4 & 3..2 & 1..0 \\
+\hline
+-- & npl & cpl \\
+\hline
+Unused & Needed privilege level & Current privilege level \\
 \hline
 		\end{tabular}
 	}
@@ -403,18 +623,18 @@ Interrupt Routine Handler & Register Frame & Reserved & Enabled \\
 \end{table}
 
 \subsection{Interrupt Routine Handler} \label{ir:HANDLER}
-Interrupt Routine Handlers (IRH) are user-defined procedures that respond to a specific interrupt raised by the CPU. IRs have their own \emph{register frame} and can access the previous \emph{register frame} via its address located in the \verb|rlfp| register.
+Interrupt Routine Handlers (IRH) are \emph{user-defined} \emph{level-1} procedures that respond to a specific interrupt raised by the CPU. IRs have their own \emph{register frame} and can access the previous \emph{register frame} via its address located in the \verb|rlfp| register.
 
 IRHs can exit at any time and resume execution by calling \verb|reti|. For non-recoverable interrupts this will result in the CPU being reset.
 
 \subsection{User-defined interrupts}
-% TODO
+Any ID in the \emph{user-defined} range (See \ref{ir:list}) can be used for custom interrupts. These can only be of the \textbf{signal} type.
 
 \section{Memory management}
 \subsection{Paging}
 The SiERNA architecture utilises \emph{paging} as its technique for memory protection and virtual address space mapping. A single page spans \textbf{4 KiB} (\verb|0x1000|) of physical memory.
 
-The page table is a 3-level nested structure; the full 32-bit virtual address space (0x0000 0000 - 0xFFFF FFFF) is encapsulated by a level-0 page directory which contains 256 entries, each pointing to a level-1 page directory (or 0). A level-1 page directory contains 256 entries, each pointing to a page table (or 0). Every page table entry (page descriptor) then describes the page as well as its physical address. This allows for mapping the entire address range without unnecessarily wasting too much memory for paging structures in situations that do not need the entire address range mapped.
+The page table is a 3-level nested structure; the full 32-bit virtual address space (0x0000 0000 - 0xFFFF FFFF) is encapsulated by a level-0 page directory which contains 256 entries, each pointing to a level-1 page directory. A level-1 page directory contains 256 entries, each pointing to a page table (or 0). Every page table entry (page descriptor) then describes the page as well as its physical address. This allows for mapping the entire address range without unnecessarily wasting too much memory for paging structures in situations that do not need the entire address range mapped.
 
 \subsubsection{Page Directory}
 The page directory is an linear array of 256 page directory entries
@@ -493,14 +713,14 @@ The page descriptor specifies what physical page this specific descriptor maps t
 
 \begin{table}[H]
 	\centering
-	{
-		\begin{tabular}{|c|c|c|c|}
+	\resizebox{\linewidth}{!}{
+		\begin{tabular}{|c|c|c|c|c|c|}
 \hline
-31..12 & 11..3 & 2..1 & 0 \\
+31..12 & 11..5 & 4 & 3 & 2..1 & 0 \\
 \hline
-\&adr & -- & pl & p \\
+\&adr & -- & ex & rw & pl & p \\
 \hline
-Physical target page address[31:12] & Reserved & Privilege level & Present \\
+Physical target page address[31:12] & Reserved & Execute & Read+write & Privilege level & Present \\
 \hline
 		\end{tabular}
 	}
@@ -509,7 +729,9 @@ Physical target page address[31:12] & Reserved & Privilege level & Present \\
 NOTE: \verb|adr| \textbf{must} be page aligned (\verb|0x1000|)
 
 \subsubsection{Setting up paging}
-On early initialisation, the \emph{bootup late initialisation program} sets up an identity map for the low memory region (\verb|0x00000000-0x00010000|). After the \emph{target program} takes over it should set up its own page directory structure according to its needs and point its \verb|rpdp| register to the physical address of the level-0 page directory.
+% On early initialisation, the \emph{bootup late initialisation program} sets up an identity map for the low memory region (\verb|0x00000000-0x00010000|). After the \emph{target program} takes over it should set up its own page directory structure according to its needs and point its \verb|rpdp| register to the physical address of the level-0 page directory.
+
+The \emph{target program}, after receiving control from the \gls{BLIP}, should set up its own page directory structure according to its needs and point its \verb|rpdp| register to the physical address of the level-0 page directory.
 
 \subsection{Virtual memory}
 The position (offset/index) of a page descriptor within the page directory as a whole determines the virtual address that gets mapped to the specific physical address that the page descriptor contains.
@@ -531,9 +753,13 @@ This map is assigned by the hardware and can not be modified.
 \hline
 Start & End & Description & Type \\
 \hline
-0x0000 0000 & 0xFFF0 0000 & User DRAM & User \\
+0x0000 0000 & 0x0000 1000 & -- & Reserved \\
 \hline
-0xFFF0 0000 & 0xFFFD FE00 & -- & Reserved \\
+0x0000 1000 & 0xFFF0 0000 & User DRAM & User \\
+\hline
+0xFFA0 0000 & 0xFFA1 0000 & \acrshort{BLIP} ROM & Firmware \\
+\hline
+0xFFA1 0000 & 0xFFFD FC00 & -- & Reserved \\
 \hline
 0xFFFD FC00 & 0xFFFD FE00 & \hyperref[SPPB-SPPB:PMMT]{SPPBC} memory map & Supervisor \\
 \hline
@@ -610,14 +836,17 @@ Value & Description \\
 	}
 \end{table}
 
+\textbf{IMPORTANT: If the MMU forwards an address to the \emph{target} that does not exist in its memory map, it must raise a \#MAE.} \\
+\\
+Overlapping address ranges are undefined behaviour and implementation-specific.
+
 \subsection{Memory Management Unit}
 The MMU is handles memory I/O operations and address routing.
 
 \begin{itemize}
 	\item For \emph{paging}, the MMU is responsible for translating virtual addresses to physical addresses
-	\item For \emph{I/O}, the MMU takes a requested physical address and acts as a \emph{multiplexer} to correctly route the I/O operation in accordance with the \hyperref[mm:PML]{physical memory layout} , performing the requested operation
+	\item For \emph{I/O}, the MMU takes a requested physical address and acts like a \emph{multiplexer} to correctly route the I/O operation in accordance with the \hyperref[mm:PML]{physical memory layout}, performing the requested operation
 \end{itemize}
-
 
 \subsubsection{Operations}
 The MMU must provide the following operations for the \gls{CU}:
@@ -629,24 +858,26 @@ The MMU must provide the following operations for the \gls{CU}:
 \hline
 Mnemonic & Description & Input & Output & INT on error \\
 \hline
-tavp & Translate Page Address Virtual to Physical & page-aligned virtual address & page-aligned physical address & \hyperref[ir:PLE]{\#PLE} \\
+tavp & Translate Page Address Virtual to Physical & page-aligned virtual address, r/w/x & page-aligned physical address & \hyperref[ir:PLE]{\#PLE} \\
 \hline
-raddr8 & Read Physical Address 8 & physical address & data (byte) & \hyperref[ir:MAE]{\#MAE} \\
+mread8 & Read Physical Address 8 & physical address & data (byte) & \hyperref[ir:MAE]{\#MAE} \\
 \hline
-raddr16 & Read Physical Address 16 & physical address & data (half-word) & \hyperref[ir:MAE]{\#MAE} \\
+mread16 & Read Physical Address 16 & physical address & data (half-word) & \hyperref[ir:MAE]{\#MAE} \\
 \hline
-raddr32 & Read Physical Address 32 & physical address & data (word) & \hyperref[ir:MAE]{\#MAE} \\
+mread32 & Read Physical Address 32 & physical address & data (word) & \hyperref[ir:MAE]{\#MAE} \\
 \hline
-waddr8 & Write Physical Address 8 & physical address, data (byte) & -- & \hyperref[ir:MAE]{\#MAE} \\
+mwrite8 & Write Physical Address 8 & physical address, data (byte) & -- & \hyperref[ir:MAE]{\#MAE} \\
 \hline
-waddr16 & Write Physical Address 16 & physical address, data (half-word) & -- & \hyperref[ir:MAE]{\#MAE} \\
+mwrite16 & Write Physical Address 16 & physical address, data (half-word) & -- & \hyperref[ir:MAE]{\#MAE} \\
 \hline
-waddr32 & Write Physical Address 32 & physical address, data (word) & -- & \hyperref[ir:MAE]{\#MAE} \\
+mwrite32 & Write Physical Address 32 & physical address, data (word) & -- & \hyperref[ir:MAE]{\#MAE} \\
 \hline
 		\end{tabular}
 	}
 \end{table}
 
+As stated in \P\ref{ma}, the MMU allows only type-aligned addressing for I/O and \textbf{must} raise a \textbf{\hyperref[ir:MAE]{\#MAE}} on incorrect alignment.\\
+\\
 How the MMU communicates with other internal CPU components is up to the specific implementation.
 
 \section{Protection domains}
@@ -660,15 +891,23 @@ along with three primary mechanisms contributing to system/cross-program securit
 \begin{enumerate}
 	\item Some registers having restricted read-only access for level 0
 	\item Non-register I/O access to system RAM being restricted to level 1
-	\item Per-page privilege level set by the supervisor
+	\item Per-page permissions
 \end{enumerate}
 
 Enforcing privilege levels is the job of the CPU. This happens at three stages:
 \begin{enumerate}
 	\item When writing a register, the CU checks the current privilege level and, if it isn't at least level 1 and the target register is write-restricted, raises a \hyperref[ir:GPE]{\#GPE}
 	\item Upon receiving a \verb|tavp| operation, the MMU reads the current privilege level as well as the requested page's privilege level, and raises a \hyperref[ir:GPE]{\#GPE}
-	\item Upon receiving a \verb|raddr*| or \verb|waddr*| operation, the MMU checks if the provided physical address is in a restricted range. If it is, and the current privilege level is not at least level 1, it raises a \hyperref[ir:GPE]{\#GPE}
+	\item Upon receiving a \verb|tavp| operation, the MMU checks the provided purpose (r/w/x), matches it with the requested page's permissions, and if they don't match it raises a \hyperref[ir:GPE]{\#GPE}
+	\item Upon receiving a \verb|mread*| or \verb|mwrite*| operation, the MMU checks if the provided physical address is in a restricted range. If it is, and the current privilege level is not at least level 1, it raises a \hyperref[ir:GPE]{\#GPE}
 \end{enumerate}
+
+\subsection{Protection level transfer}
+A transfer between protection level for the current \emph{frame} can be performed at at any time by the \emph{supervisor} by writing to the \verb|rpl| register or for any frame by writing to its memory directly.
+
+\section{Context switching}
+% TODO how would a user context switch back?
+A context switch can be performed at any time by the \emph{supervisor} by writing to the \verb|rfp| register.
 
 \section{Structures}
 \subsection{CPUID} \label{st:CPUID}

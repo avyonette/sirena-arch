@@ -11,6 +11,14 @@
 
 \makeglossaries
 \newacronym{SPPB}{SPPB}{Simple Parallel Peripheral Bus}
+\newglossaryentry{bid}{
+	name=Bus ID,
+	description={Index of a physical bridge port that a device can connect to}
+}
+\newglossaryentry{pid}{
+	name=Port ID,
+	description={Index of a virtual I/O port in a device, corresponding to a specific address region}
+}
 
 %opening
 \title{
@@ -69,17 +77,7 @@ GPIO pin & Description \\
 \hline
 8 & Clock \\
 \hline
-9 & Device select 0 \\
-\hline
-10 & Device select 1 \\
-\hline
-11 & Device select 2 \\
-\hline
-12 & Device select 3 \\
-\hline
-13 & Device select 4 \\
-\hline
-14 & Interrupt request \\
+9 & Interrupt request \\
 \hline
 		\end{tabular}
 	}
@@ -119,7 +117,7 @@ Offset & Value \\
 \hline
 \&bs & \&lm & bid & pid & -- & rw & p \\
 \hline
-Physical base address[31:12] & Physical limit address[31:12] & Bus ID & Port ID & Reserved & Read/Write & Present \\
+Physical base address[31:12] & Physical limit address[31:12] & \gls{bid} & \gls{pid} & Reserved & Read/Write & Present \\
 \hline
 		\end{tabular}
 	}
@@ -129,7 +127,7 @@ NOTE: Both the base and limit addresses must be \verb|0x1000| aligned.
 
 NOTE: Base address is inclusive, while limit is exclusive, i.e. $base \le addr < limit$
 
-NOTE: \emph{Read/write} select what I/O operation the port is used for. It can be \verb|0| for read, \verb|1| for write, or \verb|3| for both read and write.
+NOTE: \emph{Read/write} select what I/O operation the port is used for. It can be \verb|1| for read, \verb|2| for write, or \verb|4| for both read and write.
 
 \section{Bridge} \label{SPPBB}
 The \acrshort{SPPB} bridge is, in principle, a multiplexer with a digital control protocol. It's responsible for routing memory I/O between the system board and connected peripherals.
@@ -172,12 +170,14 @@ INT request & IRQ & 22 & 23 & IS7 & INT select 7 \\
 	}
 \end{table}
 
-Upon receiving a request packet from a \emph{host controller}, the bridge decodes the \emph{request frame} (See \ref{P:RF}), reads the port ID and bus ID and, using its multiplexer or similar, routes the packet to the specified device.
+Upon receiving a request packet from a \emph{host controller}, the bridge decodes the \emph{request frame} (See \ref{P:RF}), reads the \gls{bid} and \gls{pid} and, using its multiplexer or similar, routes the packet to the specified device.
 
 Afterwards, if the request packet requires a response, it waits for the device to communicate it and is then sent directly back to the \emph{host controller}.
 
 \section{Device}
 \acrshort{SPPB} devices respond to requests from the \emph{bridge} and do not send any data on their own. They are connected to the \emph{bridge} with a 2x10-pin connector.
+
+A compliant device must also return to a clean state when receiving a HIGH signal on the \verb|RST| pin from the bridge.
 
 \begin{table}[H]
 	\centering
@@ -203,7 +203,7 @@ Data 7 & D7 & 10 & 11 & GND & Ground \\
 \hline
 Ground & GND & 14 & 15 & CLK & Clock \\
 \hline
--- & -- & 16 & 17 & -- & -- \\
+Reset & RST & 16 & 17 & -- & -- \\
 \hline
 INT request & IRQ & 18 & 19 & GND & Ground \\
 \hline
@@ -226,7 +226,7 @@ Every request packet is preceded by a request frame, which is a 16-bit struct th
 \hline
 -- & pkt & pid & bid \\
 \hline
-Reserved & Packet ID & Port ID & Bus ID \\
+Reserved & Packet ID & \gls{pid} & \gls{bid} \\
 \hline
 		\end{tabular}
 	}
@@ -426,9 +426,9 @@ If the device did not raise any interrupt, \verb|int| is 0.
 \section{Interrupts}
 Interrupts are first handled within the device-bridge loop before being sent to the CPU as a binary selector.
 
-Whenever a connected device wants to raise an interrupt, it communicates the need to do so by pulling the \verb|IRQ| pin HIGH on the bridge. After every operation the \emph{bridge} checks the status of the \verb|IRQ| bin and, if it's detected HIGH, it sents out a \hyperref[P:IIRQ]{Interrupt Information Request} packet to every connected device in an unspecified order, propagating the interrupt request to the CPU after decoding the response packet and if \verb|int| is not zero. The \verb|IRQ| pin is then cleared by the requesting device after receiving the IIRQ packet.
+Whenever a connected device wants to raise an interrupt, it communicates the need to do so by pulling the \verb|IRQ| pin HIGH on the bridge. When the bridge detects the \verb|IRQ| pin set HIGH, it finishes the current operation (if any) and sents out a \hyperref[P:IIRQ]{Interrupt Information Request} packet to every connected device in an unspecified order, propagating the interrupt request to the CPU after decoding the response packet and if \verb|int| is not zero. The \verb|IRQ| pin is then cleared by the requesting device after receiving the IIRQ packet.
 
 % TODO there are kinda 2 ways to do this; this one would mean that if some device is constantly raising interrupts then it will stall/drown the others unless the bridge uses some kind of random queue instead of going from 0 to 15, the other option is going through the loop until IRQ is cleared, but that means that a rogue device could stall the bridge and system forever. all-in-all this is probably the better option and has a simple way to solve it
-If \verb|IRQ| is still HIGH after receiving a non-zero interrupt ID, i.e. more than one device wants to raise an interrupt at the same time, the \emph{bridge} completes a single request from the \emph{host controller} before going through the same process.
+If \verb|IRQ| is still HIGH after receiving a non-zero interrupt ID, i.e. more than one device wants to raise an interrupt at the same time, the \emph{bridge} completes a single queued request (if any) from the \emph{host controller} before going through the same process.
 
 \end{document}

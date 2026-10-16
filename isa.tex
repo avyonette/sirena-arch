@@ -6,8 +6,12 @@
 \usepackage{listings}
 \usepackage{xr}
 \usepackage{hyperref}
+\usepackage[acronym]{glossaries}
 
 \externaldocument[CPU-]{cpu}
+
+\makeglossaries
+\newacronym{PL}{PL}{Privilege Level}
 
 %opening
 \title{
@@ -33,18 +37,6 @@
 \section{Preface}
 
 \section{Glossary}
-\begin{itemize}
-	\item sext18(x) - sign-extend x from bit 17 to 32 bits
-	\item sext16(x) - sign-extend x from bit 15 to 32 bits
-	\item zext16(x) - zero-extend x from bit 15 to 32 bits
-	\item sext8(x) - sign-extend x from bit 7 to 32 bits
-	\item zext8(x) - zero-extend x from bit 7 to 32 bits
-	\item read8(a) - read 8 bits from address a
-	\item read16(a) - read 16 bits from address a
-	\item write8(a, x) - write 8 bit value x to address a
-	\item write16(a, x) - write 16 bit value x to address a
-\end{itemize}
-
 
 \section{Design}
 
@@ -102,6 +94,7 @@
 \end{table*}
 
 \section{Core set (CORE32)}
+{\small \textit{CPUID bit 0, required}}
 
 % os, op, ds, ra, rb, ff, desc
 \newcommand{\opr}[7]{
@@ -172,38 +165,50 @@
 
 \subsection{Load/Store operations}
 \subsubsection{ldw - load word}
-\opr{0x00}{0x02}{destination}{\&source}{--}{0x00}
-	{Loads a single word from memory at \emph{source} into \emph{destination}}
+\opr{0x00}{0x02}{destination}{\&source (4-aligned)}{--}{0x00}
+	{
+		Loads a single word from memory at \emph{source} into \emph{destination}
+		\\\\
+		NOTE: \emph{source} \textbf{must} be word-aligned. If it isn't, the MMU will raise a \textbf{\#MAE}
+	}
 \begin{lstlisting}
 value = *source
 \end{lstlisting}
 
 \subsubsection{ldhz - load half-word zero-extended}
-\opr{0x00}{0x02}{destination}{\&source}{--}{0x01}
-	{Loads a zero-extended half-word from memory at \emph{source} into \emph{destination}}
+\opr{0x00}{0x02}{destination}{\&source (2-aligned)}{--}{0x01}
+	{
+		Loads a zero-extended half-word from memory at \emph{source} into \emph{destination}
+		\\\\
+		NOTE: \emph{source} \textbf{must} be half word-aligned. If it isn't, the MMU will raise a \textbf{\#MAE}
+	}
 \begin{lstlisting}
-value = zext16(read16(*source))
+value = zext16(mread16(*source))
 \end{lstlisting}
 
 \subsubsection{ldhs - load half-word sign-extended}
-\opr{0x00}{0x02}{destination}{\&source}{--}{0x02}
-	{Loads a sign-extended half-word from memory at \emph{source} into \emph{destination}}
+\opr{0x00}{0x02}{destination}{\&source (2-aligned)}{--}{0x02}
+	{
+		Loads a sign-extended half-word from memory at \emph{source} into \emph{destination}
+		\\\\
+		NOTE: \emph{source} \textbf{must} be half word-aligned. If it isn't, the MMU will raise a \textbf{\#MAE}
+	}
 \begin{lstlisting}
-value = sext16(read16(*source))
+value = sext16(mread16(*source))
 \end{lstlisting}
 
 \subsubsection{ldbz - load byte zero-extended}
 \opr{0x00}{0x02}{destination}{\&source}{--}{0x03}
 	{Loads a zero-extended byte from memory at \emph{source} into \emph{destination}}
 \begin{lstlisting}
-value = zext8(read8(*source))
+value = zext8(mread8(*source))
 \end{lstlisting}
 
 \subsubsection{ldbs - load byte sign-extended}
 \opr{0x00}{0x02}{destination}{\&source}{--}{0x04}
 	{Loads a sign-extended byte from memory at \emph{source} into \emph{destination}}
 \begin{lstlisting}
-value = sext8(read8(*source))
+value = sext8(mread8(*source))
 \end{lstlisting}
 
 \subsubsection{lvi - load sign-extended value immediate}
@@ -228,24 +233,32 @@ destination = (*destination & 0x0000FFFF) | (value << 16)
 \end{lstlisting}
 
 \subsubsection{stw - store word}
-\opr{0x00}{0x05}{\&destination}{source}{--}{0x00}
-	{Writes a single word into memory at \emph{destination} from \emph{source}}
+\opr{0x00}{0x05}{\&destination (4-aligned)}{source}{--}{0x00}
+	{
+		Writes a single word into memory at \emph{destination} from \emph{source}
+		\\\\
+		NOTE: \emph{destination} \textbf{must} be word-aligned. If it isn't, the MMU will raise a \textbf{\#MAE}
+	}
 \begin{lstlisting}
 *destination = source
 \end{lstlisting}
 
 \subsubsection{sth - store half-word}
-\opr{0x00}{0x05}{\&destination}{source}{--}{0x01}
-	{Writes a half-word into memory at \emph{destination} from \emph{source}}
+\opr{0x00}{0x05}{\&destination (2-aligned)}{source}{--}{0x01}
+	{
+		Writes a half-word into memory at \emph{destination} from \emph{source}
+		\\\\
+		NOTE: \emph{destination} \textbf{must} be half word-aligned. If it isn't, the MMU will raise a \textbf{\#MAE}
+	}
 \begin{lstlisting}
-*destination = source >> 16
+*destination = source & 0xFFFF
 \end{lstlisting}
 
 \subsubsection{stb - store byte}
 \opr{0x00}{0x05}{\&destination}{source}{--}{0x02}
 	{Writes a byte into memory at \emph{destination} from \emph{source}}
 \begin{lstlisting}
-*destination = source >> 24
+*destination = source & 0xFF
 \end{lstlisting}
 
 \subsection{Register operations}
@@ -268,7 +281,7 @@ rip = target
 \opr{0x00}{0x08}{\&target}{cmp}{--}{0x00}
 	{Sets the \emph{instruction pointer} to the value of \emph{target} if the comparison result \emph{cmp} is \textbf{EQUAL}}
 \begin{lstlisting}
-if (cmp & 0b0001) == 1 {
+if (cmp & 0b000001) != 0 {
 	rip = target
 }
 \end{lstlisting}
@@ -277,25 +290,43 @@ if (cmp & 0b0001) == 1 {
 \opr{0x00}{0x08}{\&target}{cmp}{--}{0x01}
 	{Sets the \emph{instruction pointer} to the value of \emph{target} if the comparison result \emph{cmp} is \textbf{NOT EQUAL}}
 \begin{lstlisting}
-if (cmp & 0b0010) == 1 {
+if (cmp & 0b000010) != 0 {
 	rip = target
 }
 \end{lstlisting}
 
 \subsubsection{jalt - jump absolute if less than}
 \opr{0x00}{0x08}{\&target}{cmp}{--}{0x02}
-	{Sets the \emph{instruction pointer} to the value of \emph{target} if the comparison result \emph{cmp} is \textbf{LESS THAN}}
+	{Sets the \emph{instruction pointer} to the value of \emph{target} if the comparison result \emph{cmp} is \textbf{LESS THAN (signed)}}
 \begin{lstlisting}
-if (cmp & 0b0100) == 1 {
+if (cmp & 0b000100) != 0 {
+	rip = target
+}
+\end{lstlisting}
+
+\subsubsection{jaltu - jump absolute if less than (unsigned)}
+\opr{0x00}{0x08}{\&target}{cmp}{--}{0x02}
+	{Sets the \emph{instruction pointer} to the value of \emph{target} if the comparison result \emph{cmp} is \textbf{LESS THAN (unsigned)}}
+\begin{lstlisting}
+if (cmp & 0b010000) != 0 {
 	rip = target
 }
 \end{lstlisting}
 
 \subsubsection{jage - jump absolute if greater or equal}
 \opr{0x00}{0x08}{\&target}{cmp}{--}{0x03}
-	{Sets the \emph{instruction pointer} to the value of \emph{target} if the comparison result \emph{cmp} is \textbf{GREATER THAN} or \textbf{EQUAL}}
+	{Sets the \emph{instruction pointer} to the value of \emph{target} if the comparison result \emph{cmp} is \textbf{GREATER THAN (signed)} or \textbf{EQUAL}}
 \begin{lstlisting}
-if (cmp & 0b1000) == 1 || (cmp & 0b0001) == 1 {
+if (cmp & 0b001000) != 0 || (cmp & 0b000001) != 0 {
+	rip = target
+}
+\end{lstlisting}
+
+\subsubsection{jageu - jump absolute if greater or equal (unsigned)}
+\opr{0x00}{0x08}{\&target}{cmp}{--}{0x04}
+	{Sets the \emph{instruction pointer} to the value of \emph{target} if the comparison result \emph{cmp} is \textbf{GREATER THAN (unsigned)} or \textbf{EQUAL}}
+\begin{lstlisting}
+if (cmp & 0b100000) != 0 || (cmp & 0b000001) != 0 {
 	rip = target
 }
 \end{lstlisting}
@@ -311,7 +342,7 @@ rip = rip + sext18(target)
 \opj{0x00}{0x0A}{target}{cmp}
 	{Sets the \emph{instruction pointer} to sign-extended \emph{target} relative to the current value of the \emph{instruction pointer} if the comparison result \emph{cmp} is \textbf{EQUAL}}
 \begin{lstlisting}
-if (cmp & 0b0001) == 1 {
+if (cmp & 0b000001) == 1 {
 	rip = rip + sext18(target)
 }
 \end{lstlisting}
@@ -320,31 +351,49 @@ if (cmp & 0b0001) == 1 {
 \opj{0x00}{0x0B}{target}{cmp}
 	{Sets the \emph{instruction pointer} to sign-extended \emph{target} relative to the current value of the \emph{instruction pointer} if the comparison result \emph{cmp} is \textbf{NOT EQUAL}}
 \begin{lstlisting}
-if (cmp & 0b0010) == 1 {
+if (cmp & 0b000010) == 1 {
 	rip = rip + sext18(target)
 }
 \end{lstlisting}
 
 \subsubsection{jrlt - jump relative if less than}
 \opj{0x00}{0x0C}{target}{cmp}
-	{Sets the \emph{instruction pointer} to sign-extended \emph{target} relative to the current value of the \emph{instruction pointer} if the comparison result \emph{cmp} is \textbf{LESS THAN}}
+	{Sets the \emph{instruction pointer} to sign-extended \emph{target} relative to the current value of the \emph{instruction pointer} if the comparison result \emph{cmp} is \textbf{LESS THAN (signed)}}
 \begin{lstlisting}
-if (cmp & 0b0100) == 1 {
+if (cmp & 0b000100) == 1 {
+	rip = rip + sext18(target)
+}
+\end{lstlisting}
+
+\subsubsection{jrltu - jump relative if less than (unsigned)}
+\opj{0x00}{0x0D}{target}{cmp}
+	{Sets the \emph{instruction pointer} to sign-extended \emph{target} relative to the current value of the \emph{instruction pointer} if the comparison result \emph{cmp} is \textbf{LESS THAN (unsigned)}}
+\begin{lstlisting}
+if (cmp & 0b010000) == 1 {
 	rip = rip + sext18(target)
 }
 \end{lstlisting}
 
 \subsubsection{jrge - jump relative if greater or equal}
-\opj{0x00}{0x0D}{target}{cmp}
-	{Sets the \emph{instruction pointer} to sign-extended \emph{target} relative to the current value of the \emph{instruction pointer} if the comparison result \emph{cmp} is \textbf{GREATER THAN} or \textbf{EQUAL}}
+\opj{0x00}{0x0E}{target}{cmp}
+	{Sets the \emph{instruction pointer} to sign-extended \emph{target} relative to the current value of the \emph{instruction pointer} if the comparison result \emph{cmp} is \textbf{GREATER THAN (signed)} or \textbf{EQUAL}}
 \begin{lstlisting}
-if (cmp & 0b1000) == 1 || (cmp & 0b0001) == 1 {
+if (cmp & 0b001000) == 1 || (cmp & 0b000001) == 1 {
+	rip = rip + sext18(target)
+}
+\end{lstlisting}
+
+\subsubsection{jrgeu - jump relative if greater or equal (unsigned)}
+\opj{0x00}{0x0F}{target}{cmp}
+	{Sets the \emph{instruction pointer} to sign-extended \emph{target} relative to the current value of the \emph{instruction pointer} if the comparison result \emph{cmp} is \textbf{GREATER THAN (unsigned)} or \textbf{EQUAL}}
+\begin{lstlisting}
+if (cmp & 0b100000) == 1 || (cmp & 0b000001) == 1 {
 	rip = rip + sext18(target)
 }
 \end{lstlisting}
 
 \subsubsection{calla - call procedure absolute}
-\opr{0x00}{0x0E}{\&target}{--}{--}{--}
+\opr{0x00}{0x10}{\&target}{--}{--}{--}
 	{Sets the \emph{procedure tail pointer} to the value of the \emph{instruction pointer} and then sets the \emph{instruction pointer} to the value of \emph{target}}
 \begin{lstlisting}
 rtp = rip + 4
@@ -352,7 +401,7 @@ rip = target
 \end{lstlisting}
 
 \subsubsection{callr - call procedure relative immediate}
-\opj{0x00}{0x0F}{\&target}{--}
+\opj{0x00}{0x11}{\&target}{--}
 	{Sets the \emph{procedure tail pointer} to the value of the \emph{instruction pointer} and then sets the \emph{instruction pointer} to the value of sign-extended \emph{target} relative to the current value of the \emph{instruction pointer}}
 \begin{lstlisting}
 rtp = rip + 4
@@ -360,15 +409,17 @@ rip = rip + sext18(target)
 \end{lstlisting}
 
 \subsubsection{ret - return from procedure}
-\opr{0x00}{0x10}{--}{--}{--}{--}
+\opr{0x00}{0x12}{--}{--}{--}{--}
 	{Sets the \emph{instruction pointer} to the value of the \emph{procedure tail pointer}}
 \begin{lstlisting}
 rip = rtp
 \end{lstlisting}
 
 \subsection{Mathematical operations}
+NOTE: These instructions may all modify the \verb|rcf| register in accordance to the specific operation. For more information see \hyperref[CPU-alu:op]{ALU operations}.
+
 \subsubsection{cmp - compare values}
-\opr{0x00}{0x11}{result}{a}{b}{--}
+\opr{0x00}{0x13}{result}{a}{b}{--}
 	{
 		Compares the values of \emph{a} and \emph{b} and stores the comparison result in \emph{result}.
 
@@ -383,9 +434,13 @@ rip = rtp
 				\hline
 				1 & NOT EQUAL & if set, \emph{a} and \emph{b} are not equal \\
 				\hline
-				2 & LESS THAN & if set, \emph{a} is less than \emph{b} \\
+				2 & LESS THAN (signed) & if set, \emph{a} is less than \emph{b}, taking into account the sign \\
 				\hline
-				3 & GREATER THAN & if set, \emph{a} is greater than \emph{b} \\
+				3 & GREATER THAN (signed) & if set, \emph{a} is greater than \emph{b}, taking into account the sign \\
+				\hline
+				4 & LESS THAN (unsigned) & if set, \emph{a} is less than \emph{b} \\
+				\hline
+				5 & GREATER THAN (unsigned) & if set, \emph{a} is greater than \emph{b} \\
 				\hline
 			\end{tabular}
 		\end{table}
@@ -409,133 +464,145 @@ if a == b {
 \end{lstlisting}
 
 \subsubsection{add - integer addition}
-\opr{0x00}{0x12}{result}{a}{b}{0x00}
+\opr{0x00}{0x14}{result}{a}{b}{0x00}
 	{Adds the values of \emph{a} and \emph{b} together and stores the result in \emph{result}}
 \begin{lstlisting}
-result = a + b
+result = iadd32c(a, b)
 \end{lstlisting}
 
 \subsubsection{sub - integer subtraction}
-\opr{0x00}{0x12}{result}{a}{b}{0x01}
+\opr{0x00}{0x14}{result}{a}{b}{0x01}
 	{Subtracts the value of \emph{b} from the value of \emph{a} and stores the result in \emph{result}}
 \begin{lstlisting}
-result = a - b
+result = isub32(a, b)
 \end{lstlisting}
 
 \subsubsection{addi - integer addition sign-extended immediate}
-\opi{0x00}{0x13}{a}{b}{--}
+\opi{0x00}{0x15}{a}{b}{--}
 	{Adds the value of sign-extended \emph{b} and the value of \emph{a} together, storing the result in \emph{a}}
 \begin{lstlisting}
-a = a + sext16(b)
+a = iadd32c(a, sext16(b))
 \end{lstlisting}
 
 \subsubsection{mul - integer multiplication}
-\opr{0x00}{0x14}{result}{a}{b}{0x00}
+\opr{0x00}{0x16}{result}{a}{b}{0x00}
 	{Multiplies the values of \emph{a} and \emph{b} together and stores the result in \emph{result}}
 \begin{lstlisting}
-result = a * b
+result = imul32(a, b)
 \end{lstlisting}
 
-\subsubsection{div - integer division}
-\opr{0x00}{0x14}{result}{a}{b}{0x01}
-	{Divides the value of \emph{a} by the value of \emph{b} stores the result in \emph{result}
-		\begin{itemize}
-			\item Fractional results are truncated towards 0
-			\item Division by 0 raises \textbf{\#DBZ}
-		\end{itemize}
-	}
-\begin{lstlisting}
-result = a // b
-\end{lstlisting}
+% \subsubsection{div - integer division}
+% \opr{0x00}{0x14}{result}{a}{b}{0x01}
+% 	{Divides the value of \emph{a} by the value of \emph{b} stores the result in \emph{result}
+% 		\begin{itemize}
+% 			\item Fractional results are truncated towards 0
+% 			\item Division by 0 raises \textbf{\#DBZ}
+% 		\end{itemize}
+% 	}
+% \begin{lstlisting}
+% result = a // b
+% \end{lstlisting}
 
-\subsubsection{mod - integer remainder}
-\opr{0x00}{0x14}{result}{a}{b}{0x02}
-	{Stores the division remainder of dividing \emph{a} by \emph{b} in \emph{result}
-		\begin{itemize}
-			\item Fractional results are truncated towards 0
-			\item Modulo by 0 throws a DIVISION BY ZERO exception
-		\end{itemize}
-	}
-\begin{lstlisting}
-result = a % b
-\end{lstlisting}
+% \subsubsection{mod - integer remainder}
+% \opr{0x00}{0x14}{result}{a}{b}{0x02}
+% 	{Stores the division remainder of dividing \emph{a} by \emph{b} in \emph{result}
+% 		\begin{itemize}
+% 			\item Fractional results are truncated towards 0
+% 			\item Modulo by 0 throws a DIVISION BY ZERO exception
+% 		\end{itemize}
+% 	}
+% \begin{lstlisting}
+% result = a % b
+% \end{lstlisting}
 
 \subsection{Bitwise operations}
 \subsubsection{and - bitwise AND}
-\opr{0x00}{0x15}{result}{a}{b}{0x00}
+\opr{0x00}{0x17}{result}{a}{b}{0x00}
 	{Performs a bitwise AND operation on the values of \emph{a} and \emph{b} and stores the result in \emph{result}}
 \begin{lstlisting}
-result = a & b
+result = and32(a, b)
 \end{lstlisting}
 
 \subsubsection{or - bitwise OR}
-\opr{0x00}{0x15}{result}{a}{b}{0x01}
+\opr{0x00}{0x17}{result}{a}{b}{0x01}
 	{Performs a bitwise OR operation on the values of \emph{a} and \emph{b} and stores the result in \emph{result}}
 \begin{lstlisting}
-result = a | b
+result = or32(a, b)
 \end{lstlisting}
 
 \subsubsection{xor - bitwise XOR}
-\opr{0x00}{0x15}{result}{a}{b}{0x02}
+\opr{0x00}{0x17}{result}{a}{b}{0x02}
 	{Performs a bitwise XOR operation on the values of \emph{a} and \emph{b} and stores the result in \emph{result}}
 \begin{lstlisting}
-result = a ^ b
+result = xor32(a, b)
 \end{lstlisting}
 
 \subsubsection{shl - logical shift left}
-\opr{0x00}{0x16}{result}{a}{n}{0x00}
+\opr{0x00}{0x18}{result}{a}{n}{0x00}
 	{Shifts the value of \emph{a} left by \emph{n} places and stores the result in \emph{result}}
 \begin{lstlisting}
-result = a << n
+result = lshl32(a, n)
 \end{lstlisting}
 
 \subsubsection{shr - logical shift right}
-\opr{0x00}{0x16}{result}{a}{n}{0x01}
+\opr{0x00}{0x18}{result}{a}{n}{0x01}
 	{Shifts the value of \emph{a} right by \emph{n} places and stores the result in \emph{result}}
 \begin{lstlisting}
-result = a >> n
+result = lshr32(a, n)
 \end{lstlisting}
 
 \subsubsection{shsr - arithmetic (signed) shift right}
-\opr{0x00}{0x16}{result}{a}{n}{0x02}
+\opr{0x00}{0x18}{result}{a}{n}{0x02}
 	{Shifts the value of \emph{a} right by \emph{n} places and stores the result in \emph{result}, sign-replicating it}
 \begin{lstlisting}
-result = (a >> n) | (a >> n >> (31 - n) << 31)
+result = ashr32(a, n)
 \end{lstlisting}
 
 \subsubsection{shli - logical shift left immediate}
-\opi{0x00}{0x17}{a}{n}{0x00}
+\opi{0x00}{0x19}{a}{n}{0x00}
 	{Shifts the value of \emph{a} in-place left by \emph{n} places}
 \begin{lstlisting}
-a = a << zext16(n)
+a = lshl32(a, zext16(n))
 \end{lstlisting}
 
 \subsubsection{shri - logical shift right immediate}
-\opi{0x00}{0x17}{a}{n}{0x01}
+\opi{0x00}{0x19}{a}{n}{0x01}
 	{Shifts the value of \emph{a} in-place right by \emph{n} places}
 \begin{lstlisting}
-a = a >> zext16(n)
+a = lshr32(a, zext16(n))
 \end{lstlisting}
 
 \subsubsection{shsri - arithmetic (signed) shift right immediate}
-\opi{0x00}{0x17}{a}{n}{0x02}
+\opi{0x00}{0x19}{a}{n}{0x02}
 	{Shifts the value of \emph{a} in-place right by \emph{n} places, sign-replicating the result}
 \begin{lstlisting}
-a = a >> (a >> zext16(n)) | (a >> zext16(n) >> (31 - zext16(n)) << 31)
+a = ashr32(a, zext16(n))
 \end{lstlisting}
 
 \subsection{Interrupt control}
 \subsubsection{int - raise software interrupt}
-\opr{0x00}{0x18}{id}{--}{--}{--}
-	{Raises a software interrupt}
+\opr{0x00}{0x1A}{id}{--}{--}{--}
+	{
+		Raises a software interrupt.
+		\\\\
+		NOTE: \acrshort{PL} 0 callers may only raise interrupts in the \emph{user-defined} range. Trying to raise a non-user interrupt from \acrshort{PL} 0 will result in a \textbf{\#GPE}.
+	}
 
 \subsubsection{inti - raise software interrupt immediate}
-\opi{0x00}{0x19}{id}{--}{--}
-	{Raises a software interrupt}
+\opi{0x00}{0x1B}{id}{--}{--}
+	{
+		Raises a software interrupt.
+		\\\\
+		NOTE: \acrshort{PL} 0 callers may only raise interrupts in the \emph{user-defined} range. Trying to raise a non-user interrupt from \acrshort{PL} 0 will result in a \textbf{\#GPE}.
+	}
 
 \subsubsection{intm - mask interrupt}
-\opr{0x00}{0x1A}{id}{enable}{--}{--}
-	{If \emph{enable} is non-zero masks an interrupt, telling the CPU not to handle it through a \hyperref[CPU-ir:HANDLER]{Interrupt Routine Handler}. Otherwise, (re-)enables it.}
+\opr{0x00}{0x1C}{id}{enable}{--}{--}
+	{
+		If \emph{enable} is non-zero masks an interrupt, telling the CPU not to handle it through a \hyperref[CPU-ir:HANDLER]{Interrupt Routine Handler}. Otherwise, (re-)enables it.
+		\\\\
+		NOTE: This instruction is restricted to \acrshort{PL} 1. Calls from \acrshort{PL} 0 will raise a \textbf{\#GPE}.
+	}
 \begin{lstlisting}
 if enable {
 	rrap[id * 0xC] = rrap[id * 0xC] | 1
@@ -545,14 +612,11 @@ if enable {
 \end{lstlisting}
 
 \subsubsection{reti - return from interrupt handler}
-\opr{0x00}{0x1B}{--}{--}{--}{--}
+\opr{0x00}{0x1E}{--}{--}{--}{--}
 	{Sets the \emph{register frame pointer} to the value of the \emph{last frame pointer} and adds 4 to the \emph{instruction pointer} to proceed to the next instruction}
 \begin{lstlisting}
 mov rfp, rlfp
 addi rip, 4
 \end{lstlisting}
-
-\subsection{Memory control}
-\subsubsection{mmap - map physical address range}
 
 \end{document}
