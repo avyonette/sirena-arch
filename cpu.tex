@@ -67,7 +67,7 @@ A \emph{register frame} refers to a (virtual) structure in RAM of 128 bytes (102
 \hline
 1023..992 & 991..960 & 959..928 & 927..896 & 895..864 & 863..832 & 831..800 & 799..768 \\
 \hline
-rfo1 & rfo0 & rfi1 & rfi0 & \multicolumn{4}{|c|}{reserved} \\
+\multicolumn{4}{|c|}{reserved} & rfo1 & rfo0 & rfi1 & rfi0 \\
 \hline
 		\end{tabular}
 	}
@@ -124,43 +124,43 @@ Registers are categorised into two categories:
 \end{itemize}
 
 \subsection{Pointer registers}
-\subsubsection{rfp - frame pointer}
+\subsubsection{(0x1D) rfp - frame pointer}
 {\small \textit{Availability: Global}}
 
 {\small \textit{Write-restricted}}
 
 Stores the physical address to the current \emph{register frame}
 
-\subsubsection{rrap - interrupt routine array pointer}
+\subsubsection{(0x1E) rrap - interrupt routine array pointer}
 {\small \textit{Availability: Global}}
 
 {\small \textit{Write-restricted}}
 
 Stores the physical address to the current \hyperref[ir:ARRAY]{Interrupt Routine Array}. Set by the supervisor to indicate which IRA the CPU should use for interrupt handling
 
-\subsubsection{rlfp - last frame pointer}
+\subsubsection{(0x13) rlfp - last frame pointer}
 {\small \textit{Availability: Local}}
 
 {\small \textit{Read-only}}
 
 Stores the physical address to the previous \emph{register frame}. Used when returning from interrupt routines
 
-\subsubsection{rip - instruction pointer}
+\subsubsection{(0x10) rip - instruction pointer}
 {\small \textit{Availability: Local}}
 
 Stores the address of the currently executing instruction
 
-\subsubsection{rtp - procedure tail pointer}
+\subsubsection{(0x11) rtp - procedure tail pointer}
 {\small \textit{Availability: Local}}
 
 Stores the address of the instruction that called the current procedure
 
-\subsubsection{rsp - stack pointer}
+\subsubsection{(0x12) rsp - stack pointer}
 {\small \textit{Availability: Local}}
 
 Stores the address of the current stack frame
 
-\subsubsection{rpdp - page directory pointer}
+\subsubsection{(0x14) rpdp - page directory pointer}
 {\small \textit{Availability: Local}}
 
 {\small \textit{Write-restricted}}
@@ -168,14 +168,14 @@ Stores the address of the current stack frame
 Stores the physical address of the level-0 page directory structure. If it points to 0, paging is disabled.
 
 \subsection{Restricted purpose}
-\subsubsection{rz - zero register}
+\subsubsection{(0x1F) rz - zero register}
 {\small \textit{Availability: Global}}
 
 {\small \textit{Read-only}}
 
-Always 0
+Always 0. \textbf{\#IOP} is raised on a write attempt.
 
-\subsubsection{rpl - current privilege level}
+\subsubsection{(0x16) rpl - current privilege level}
 {\small \textit{Availability: Local}}
 
 {\small \textit{Write-restricted}}
@@ -183,56 +183,56 @@ Always 0
 Stores the current privilege level
 
 \subsection{General purpose}
-\subsubsection{r0}
+\subsubsection{(0x00) r0}
 {\small \textit{Availability: Local}}
 
-\subsubsection{r1}
+\subsubsection{(0x01) r1}
 {\small \textit{Availability: Local}}
 
-\subsubsection{r2}
+\subsubsection{(0x02) r2}
 {\small \textit{Availability: Local}}
 
-\subsubsection{r3}
+\subsubsection{(0x03) r3}
 {\small \textit{Availability: Local}}
 
-\subsubsection{r4}
+\subsubsection{(0x04) r4}
 {\small \textit{Availability: Local}}
 
-\subsubsection{r5}
+\subsubsection{(0x05) r5}
 {\small \textit{Availability: Local}}
 
-\subsubsection{r6}
+\subsubsection{(0x06) r6}
 {\small \textit{Availability: Local}}
 
-\subsubsection{r7}
+\subsubsection{(0x07) r7}
 {\small \textit{Availability: Local}}
 
-\subsubsection{r8}
+\subsubsection{(0x08) r8}
 {\small \textit{Availability: Local}}
 
-\subsubsection{r9}
+\subsubsection{(0x09) r9}
 {\small \textit{Availability: Local}}
 
-\subsubsection{r10}
+\subsubsection{(0x0A) r10}
 {\small \textit{Availability: Local}}
 
-\subsubsection{r11}
+\subsubsection{(0x0B) r11}
 {\small \textit{Availability: Local}}
 
-\subsubsection{r12}
+\subsubsection{(0x0C) r12}
 {\small \textit{Availability: Local}}
 
-\subsubsection{r13}
+\subsubsection{(0x0D) r13}
 {\small \textit{Availability: Local}}
 
-\subsubsection{r14}
+\subsubsection{(0x0E) r14}
 {\small \textit{Availability: Local}}
 
-\subsubsection{r15}
+\subsubsection{(0x0F) r15}
 {\small \textit{Availability: Local}}
 
 \subsection{Special registers}
-\subsubsection{rcf} \label{r:rcf}
+\subsubsection{(0x15) rcf} \label{r:rcf}
 {\small \textit{Availability: Local}}
 
 Stores the control flags for the current execution init and output flags of ALU/FPU operations
@@ -258,22 +258,22 @@ Bit & Label & Name & Value \\
 	}
 \end{table}
 
-\subsubsection{rfi0}
+\subsubsection{(0x18) rfi0}
 {\small \textit{Availability: Local}}
 
 Used for input flags for certain operations
 
-\subsubsection{rfi1}
+\subsubsection{(0x19) rfi1}
 {\small \textit{Availability: Local}}
 
 Used for input flags for certain operations
 
-\subsubsection{rfo0}
+\subsubsection{(0x1A) rfo0}
 {\small \textit{Availability: Local}}
 
 Used for output flags of certain operations
 
-\subsubsection{rfo1}
+\subsubsection{(0x1B) rfo1}
 {\small \textit{Availability: Local}}
 
 Used for output flags of certain operations
@@ -334,7 +334,9 @@ rrap & 0x0 \\
 	}
 \end{table}
 
-This means that the CPU starts executing from the \emph{BLIP ROM}, which is where the \gls{BLIP} is located. How this program is accessed by the CPU is up to the specific implementation; in most cases, it will live in a separate ROM chip that the MMU can address directly.
+This means that the CPU starts executing from the \emph{BLIP ROM}, which is where the \gls{BLIP} is located. How this program is accessed by the CPU is up to the specific implementation; in most cases, it will live in a separate ROM chip that the MMU can address directly.\\
+\\
+\textbf{IMPORTANT: Any physical memory is NOT zeroed at start-up and as such must be treated as uninitialised, unless the loaded BLIP or target program explicitly does do.}
 
 \subsection{Boot-up Late Initialisation Program}
 The function of the \acrshort{BLIP} is final hardware and device initialisation before loading and handing over control to the \emph{target program}. How the target program is discovered and loaded is up to the specific implementation.
@@ -353,9 +355,9 @@ The ALU must provide \emph{at least} the following operations for the \gls{CU}:
 \hline
 Mnemonic & Description & SF & ZF & CF & OF \\
 \hline
-iadd32c(a, b) $\to$ y & 32-bit Add integer with carry & $y>>31$ & $y=0$ & carry & sign overflow \\
+iadd32c(a, b) $\to$ y & 32-bit Add integer with carry & $y>>31$ & $y=0$ & carry & signed overflow \\
 \hline
-isub32(a, b) $\to$ y & 32-bit Subtract integer & $y>>31$ & $y=0$ & borrow & sign overflow \\
+isub32(a, b) $\to$ y & 32-bit Subtract integer & $y>>31$ & $y=0$ & borrow & signed overflow \\
 \hline
 imul32(a, b) $\to$ y & 32-bit Multiply integer & $y>>31$ & $y=0$ & 0 & 0 \\
 \hline
@@ -377,15 +379,15 @@ ashr32(a, n) $\to$ y & 32-bit arithmetic shift right & $y>>31$ & $y=0$ & last sh
 % \hline
 % ocom32(a) $\to$ y & 32-bit One's complement & -- & -- \\
 \hline
-sext18(a) $\to$ y & Sign-extend from bit 17 to 31 & -- & -- & -- & -- \\
+signe18(a) $\to$ y & Sign-extend to 31 using bit 17 as sign & -- & -- & -- & -- \\
 \hline
-sext16(a) $\to$ y & Sign-extend from bit 15 to 31 & -- & -- & -- & -- \\
+signe16(a) $\to$ y & Sign-extend to 31 using bit 15 as sign & -- & -- & -- & -- \\
 \hline
-sext8(a) $\to$ y & Sign-extend from bit 7 to 31 & -- & -- & -- & -- \\
+signe8(a) $\to$ y & Sign-extend to 31 using bit 7 as sign & -- & -- & -- & -- \\
 \hline
-zext16(a) $\to$ y & Zero-extend from bit 15 to 31 & -- & -- & -- & -- \\
+zeroe16(a) $\to$ y & Zero-extend from bit 16 to 31 & -- & -- & -- & -- \\
 \hline
-zext8(a) $\to$ y & Zero-extend from bit 7 to 31 & -- & -- & -- & -- \\
+zeroe8(a) $\to$ y & Zero-extend from bit 8 to 31 & -- & -- & -- & -- \\
 \hline
 		\end{tabular}
 	}
@@ -437,7 +439,7 @@ ID & Mnemonic & Name & Type & Notes \\
 \hline
 0x00 & -- & Reserved & -- & -- \\
 \hline
-0x01 & \#UDO & Undefined Opcode & Trap & \\
+0x01 & \#UDO & Undefined Opcode & Trap & See \ref{ir:UDO} \\
 \hline
 0x02 & \#DBG & Debug & Trap & \\
 \hline
@@ -460,6 +462,23 @@ ID & Mnemonic & Name & Type & Notes \\
 0x20 & & & & \\
 .. & & & Signal & User-defined \\
 0xFF & & & & \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\subsubsection{\#UDO Undefined Opcode} \label{ir:UDO}
+
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|c|}
+\hline
+\multicolumn{3}{|c|}{rfi0} \\
+\hline
+31..9 & 8..4 & 3..0 \\
+\hline
+Unused & Faulting instruction opset & Faulting instruction opcode \\
 \hline
 		\end{tabular}
 	}
@@ -546,7 +565,7 @@ rfi1 & Description \\
 \hline
 0x03 & Invalid address \\
 \hline
-0x04 & Write attempted on a read-only memory region \\
+0x04 & Write on read-only memory region \\
 \hline
 		\end{tabular}
 	}
@@ -568,6 +587,8 @@ rfi0 & Description \\
 0x01 & Execute on no-execute page \\
 \hline
 0x02 & Write on read-only page \\
+\hline
+0x03 & Undefined privilege level \\
 \hline
 		\end{tabular}
 	}
@@ -905,8 +926,9 @@ along with three primary mechanisms contributing to system/cross-program securit
 	\item Per-page permissions
 \end{enumerate}
 
-Enforcing privilege levels is the job of the CPU. This happens at three stages:
+Enforcing privilege levels is the job of the CPU. This happens at five stages:
 \begin{enumerate}
+	\item Before every cycle, the CU checks if the current privilege level is valid. If not, it raises a \hyperref[ir:GPE]{\#GPE}
 	\item When writing a register, the CU checks the current privilege level and, if it isn't at least level 1 and the target register is write-restricted, raises a \hyperref[ir:GPE]{\#GPE}
 	\item Upon receiving a \verb|tavp| operation, the MMU reads the current privilege level as well as the requested page's privilege level, and raises a \hyperref[ir:GPE]{\#GPE}
 	\item Upon receiving a \verb|tavp| operation, the MMU checks the provided purpose (r/w/x), matches it with the requested page's permissions, and if they don't match it raises a \hyperref[ir:GPE]{\#GPE}
