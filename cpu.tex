@@ -55,7 +55,7 @@ This document complements the \verb|SiERNA| computer architecture by specificati
 
 \section{Registers}
 
-The SiERNA architecture, similarily to the TMS9900, does not store general-purpose registers on the CPU, but rather a \emph{frame pointer} that points to the address in register RAM of the current \emph{register frame} for the executing context.
+The SiERNA architecture, similarily to the TMS9900, does not store general-purpose registers on the CPU, but rather a \emph{frame pointer} that points to the address in \emph{system RAM} of the current \emph{register frame} for the executing context.
 
 A \emph{register frame} refers to a (virtual) structure in RAM of 128 bytes (1024 bits) in length that stores 32 4-byte values total:
 
@@ -115,7 +115,9 @@ r7 & r6 & r5 & r4 & r3 & r2 & r1 & r0 \\
 	}
 \end{table}
 
-\textbf{IMPORTANT: Every \emph{register frame} used by the \emph{target program} must be word-aligned and zeroed before first use.} \\
+\textbf{IMPORTANT: Every \emph{register frame} used by the \emph{target program} MUST be word-aligned and zeroed before first use.} \\
+
+\textbf{IMPORTANT: Any used \emph{register frame} MUST be located inside the physical memory region that maps \emph{system RAM}. For more information see \ref{mm:PML}.}\\
 
 Registers are categorised into two categories:
 \begin{itemize}
@@ -129,7 +131,7 @@ Registers are categorised into two categories:
 
 {\small \textit{Write-restricted}}
 
-Stores the physical address to the current \emph{register frame}
+Stores the physical address to the current \emph{register frame}. It must point to an address within the \emph{system RAM} (See \ref{mm:PML}); otherwise, the CPU raises a \hyperref[ir:IOP]{\textbf{\#IOP}} on write.
 
 \subsubsection{(0x1E) rrap - interrupt routine array pointer}
 {\small \textit{Availability: Global}}
@@ -143,7 +145,7 @@ Stores the physical address to the current \hyperref[ir:ARRAY]{Interrupt Routine
 
 {\small \textit{Read-only}}
 
-Stores the physical address to the previous \emph{register frame}. Used when returning from interrupt routines
+Stores the physical address to the previous \emph{register frame}. Used when returning from interrupt routines. \hyperref[ir:IOP]{\textbf{\#IOP}} is raised on a write attempt.
 
 \subsubsection{(0x10) rip - instruction pointer}
 {\small \textit{Availability: Local}}
@@ -341,6 +343,9 @@ This means that the CPU starts executing from the \emph{BLIP ROM}, which is wher
 \subsection{Boot-up Late Initialisation Program}
 The function of the \acrshort{BLIP} is final hardware and device initialisation before loading and handing over control to the \emph{target program}. How the target program is discovered and loaded is up to the specific implementation.
 
+\section{Operation cycle}
+The CPU operates at with standard fetch$\to$decode$\to$execute cycle. By the end of a single cycle, the CPU must advance the \emph{instruction pointer} by a single word for any executed instruction that does not explicitly set the \emph{instruction pointer}.
+
 \section{Arithmetic Logic Unit}
 The ALU is a component of the CPU responsible for integer arithmetic and logical operations.
 
@@ -478,7 +483,7 @@ ID & Mnemonic & Name & Type & Notes \\
 \hline
 31..9 & 8..4 & 3..0 \\
 \hline
-Unused & Faulting instruction opset & Faulting instruction opcode \\
+Unused & Faulting instruction opcode & Faulting instruction opset \\
 \hline
 		\end{tabular}
 	}
@@ -494,7 +499,10 @@ The \emph{Invalid Operation} interrupt sets the \verb|rfi0| register accordingly
 \hline
 rfi0 & Description \\
 \hline
-% TODO
+0x00 & Write to read-only register \\
+\hline
+0x01 & New frame pointer outside system RAM \\
+\hline
 		\end{tabular}
 	}
 \end{table}
@@ -750,7 +758,7 @@ The page descriptor specifies what physical page this specific descriptor maps t
 \hline
 \&adr & -- & ex & rw & pl & p \\
 \hline
-Physical target page address[31:12] & Reserved & Execute & Read+write & Privilege level & Present \\
+Physical target page address[31:12] & Reserved & Execute & Writeable & Privilege level & Present \\
 \hline
 		\end{tabular}
 	}
@@ -778,31 +786,31 @@ This map is assigned by the hardware and can not be modified.
 
 \begin{table}[H]
 	\centering
-	{
+	\resizebox{\linewidth}{!}{
 		\begin{tabular}{|c|c|c|c|}
 \hline
 Base & Limit & Description & Type \\
 \hline
 0x0000 0000 & 0x0000 1000 & -- & Reserved \\
 \hline
-0x0000 1000 & 0xFFA0 0000 & User DRAM & User \\
+0x0000 1000 & 0xFFA0 0000 & User RAM & User \\
 \hline
-0xFFA0 0000 & 0xFFA1 0000 & \acrshort{BLIP} ROM & Firmware \\
+0xFFA0 0000 & 0xFFA1 0000 & \acrshort{BLIP} ROM & Read-only, restricted \\
 \hline
 0xFFA1 0000 & 0xFFFD FC00 & -- & Reserved \\
 \hline
-0xFFFD FC00 & 0xFFFD FE00 & \hyperref[SPPB-SPPB:PMMT]{SPPBC} memory map & Supervisor \\
+0xFFFD FC00 & 0xFFFD FE00 & \hyperref[SPPB-SPPB:PMMT]{SPPBC} memory map & Hardware, restricted \\
 \hline
-0xFFFD FE00 & 0xFFFE 0000 & Level-1 memory map (\ref{mm:PML1}) & Supervisor \\
+0xFFFD FE00 & 0xFFFE 0000 & Level-1 memory map (\ref{mm:PML1}) & Hardware, restricted \\
 \hline
-0xFFFE 0000 & 0xFFFF FFFF & System BRAM & Supervisor \\
+0xFFFE 0000 & 0xFFFF FFFF & System RAM & System, restricted \\
 \hline
 		\end{tabular}
 	}
 \end{table}
 
 % TODO change this wording here cause ugh
-NOTE: \emph{System RAM} is a physically separate block of memory located directly in the CPU, making it much faster to access. It is recommended for the \emph{target program} to use it over \emph{User RAM} for structures that need constant access, such as \emph{register frames}
+NOTE: \emph{System RAM} is a physically separate block of memory that is connected directly to the CPU as well as the MMU. It is used for direct register frame I/O and should be used by the \emph{target program} for operations that require frequent and faster access than regular DRAM.
 
 \subsection{Level-1 physical memory map} \label{mm:PML1}
 This map routes addresses within \emph{User}-designated spaces to optional interface host controllers, such as the \hyperref[SPPB-SPPB:PMMT]{SPPBC}. It must be programmed by the supervisor alongside interface-specific structures for the MMU to be able to discern \emph{regular} memory addresses from addresses designated for use with \gls{MMIO}.
@@ -888,7 +896,7 @@ The MMU must provide the following operations for the \gls{CU}:
 \hline
 Mnemonic & Description & Input & Output & INT on error \\
 \hline
-tavp & Translate Page Address Virtual to Physical & page-aligned virtual address, r/w/x & page-aligned physical address & \hyperref[ir:PLE]{\#PLE} \\
+tavp & Translate Page Address Virtual to Physical & page-aligned virtual address, R/W/X & page-aligned physical address & \hyperref[ir:PLE]{\#PLE} \\
 \hline
 mread8 & Read Physical Address 8 & physical address & data (byte) & \hyperref[ir:MAE]{\#MAE} \\
 \hline
@@ -921,18 +929,18 @@ There exist two privilege levels:
 
 along with three primary mechanisms contributing to system/cross-program security:
 \begin{enumerate}
-	\item Some registers having restricted read-only access for level 0
-	\item Non-register I/O access to system RAM being restricted to level 1
+	\item Some registers having restricted read-only access for level-0
+	\item Non-register I/O access to some memory regions being restricted to level-1
 	\item Per-page permissions
 \end{enumerate}
 
 Enforcing privilege levels is the job of the CPU. This happens at five stages:
 \begin{enumerate}
-	\item Before every cycle, the CU checks if the current privilege level is valid. If not, it raises a \hyperref[ir:GPE]{\#GPE}
-	\item When writing a register, the CU checks the current privilege level and, if it isn't at least level 1 and the target register is write-restricted, raises a \hyperref[ir:GPE]{\#GPE}
-	\item Upon receiving a \verb|tavp| operation, the MMU reads the current privilege level as well as the requested page's privilege level, and raises a \hyperref[ir:GPE]{\#GPE}
-	\item Upon receiving a \verb|tavp| operation, the MMU checks the provided purpose (r/w/x), matches it with the requested page's permissions, and if they don't match it raises a \hyperref[ir:GPE]{\#GPE}
-	\item Upon receiving a \verb|mread*| or \verb|mwrite*| operation, the MMU checks if the provided physical address is in a restricted range. If it is, and the current privilege level is not at least level 1, it raises a \hyperref[ir:GPE]{\#GPE}
+	\item When writing to \emph{rpl}, the CU checks if the requested privilege level is valid. If not, it raises a \hyperref[ir:GPE]{\textbf{\#GPE}}
+	\item When writing a register, the CU checks the current privilege level and, if it isn't level 1 and the target register is write-restricted, raises a \hyperref[ir:GPE]{\textbf{\#GPE}}
+	\item Upon receiving a \verb|tavp| operation, the MMU reads the current privilege level as well as the requested page's privilege level, and raises a \hyperref[ir:GPE]{\textbf{\#GPE}} if they don't match
+	\item Upon receiving a \verb|tavp| operation, the MMU checks the provided purpose (R/W/X), matches it with the requested page's permissions, and if they don't match it raises a \hyperref[ir:GPE]{\textbf{\#GPE}}
+	\item Upon receiving a \verb|mread*| or \verb|mwrite*| operation, the MMU checks if the provided physical address is in a restricted range. If it is, and the current privilege level is not level 1, it raises a \hyperref[ir:GPE]{\textbf{\#GPE}}
 \end{enumerate}
 
 \subsection{Protection level transfer}

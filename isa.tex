@@ -167,48 +167,48 @@
 \subsubsection{ldw - load word}
 \opr{0x00}{0x02}{destination}{\&source (4-aligned)}{--}{0x00}
 	{
-		Loads a single word from memory at \emph{source} into \emph{destination}
+		Loads a single word from memory at \emph{source} into \emph{destination}. Paging applies.
 		\\\\
 		NOTE: \emph{source} \textbf{must} be word-aligned. If it isn't, the MMU will raise a \textbf{\#MAE}
 	}
 \begin{lstlisting}
-destination = mread32(source)
+destination = mread32(tavp(source, R))
 \end{lstlisting}
 
 \subsubsection{ldhz - load half-word zero-extended}
 \opr{0x00}{0x02}{destination}{\&source (2-aligned)}{--}{0x01}
 	{
-		Loads a zero-extended half-word from memory at \emph{source} into \emph{destination}
+		Loads a zero-extended half-word from memory at \emph{source} into \emph{destination}. Paging applies.
 		\\\\
 		NOTE: \emph{source} \textbf{must} be half word-aligned. If it isn't, the MMU will raise a \textbf{\#MAE}
 	}
 \begin{lstlisting}
-destination = zeroe16(mread16(source))
+destination = zeroe16(mread16(tavp(source, R)))
 \end{lstlisting}
 
 \subsubsection{ldhs - load half-word sign-extended}
 \opr{0x00}{0x02}{destination}{\&source (2-aligned)}{--}{0x02}
 	{
-		Loads a sign-extended half-word from memory at \emph{source} into \emph{destination}
+		Loads a sign-extended half-word from memory at \emph{source} into \emph{destination}. Paging applies.
 		\\\\
 		NOTE: \emph{source} \textbf{must} be half word-aligned. If it isn't, the MMU will raise a \textbf{\#MAE}
 	}
 \begin{lstlisting}
-destination = signe16(mread16(source))
+destination = signe16(mread16(tavp(source, R)))
 \end{lstlisting}
 
 \subsubsection{ldbz - load byte zero-extended}
 \opr{0x00}{0x02}{destination}{\&source}{--}{0x03}
-	{Loads a zero-extended byte from memory at \emph{source} into \emph{destination}}
+	{Loads a zero-extended byte from memory at \emph{source} into \emph{destination}}. Paging applies.
 \begin{lstlisting}
-destination = zeroe8(mread8(source))
+destination = zeroe8(mread8(tavp(source, R)))
 \end{lstlisting}
 
 \subsubsection{ldbs - load byte sign-extended}
 \opr{0x00}{0x02}{destination}{\&source}{--}{0x04}
-	{Loads a sign-extended byte from memory at \emph{source} into \emph{destination}}
+	{Loads a sign-extended byte from memory at \emph{source} into \emph{destination}}. Paging applies.
 \begin{lstlisting}
-destination = signe8(mread8(source))
+destination = signe8(mread8(tavp(source, R)))
 \end{lstlisting}
 
 \subsubsection{lvi - load sign-extended value immediate}
@@ -235,30 +235,30 @@ destination = (destination & 0x0000FFFF) | (value << 16)
 \subsubsection{stw - store word}
 \opr{0x00}{0x05}{\&destination (4-aligned)}{source}{--}{0x00}
 	{
-		Writes a single word into memory at \emph{destination} from \emph{source}
+		Writes a single word into memory at \emph{destination} from \emph{source}. Paging applies.
 		\\\\
 		NOTE: \emph{destination} \textbf{must} be word-aligned. If it isn't, the MMU will raise a \textbf{\#MAE}
 	}
 \begin{lstlisting}
-mwrite32(destination, source)
+mwrite32(tavp(destination, W), source)
 \end{lstlisting}
 
 \subsubsection{sth - store half-word}
 \opr{0x00}{0x05}{\&destination (2-aligned)}{source}{--}{0x01}
 	{
-		Writes a half-word into memory at \emph{destination} from \emph{source}
+		Writes a half-word into memory at \emph{destination} from \emph{source}. Paging applies.
 		\\\\
 		NOTE: \emph{destination} \textbf{must} be half word-aligned. If it isn't, the MMU will raise a \textbf{\#MAE}
 	}
 \begin{lstlisting}
-mwrite16(destination, source & 0xFFFF)
+mwrite16(tavp(destination, W), source & 0xFFFF)
 \end{lstlisting}
 
 \subsubsection{stb - store byte}
 \opr{0x00}{0x05}{\&destination}{source}{--}{0x02}
-	{Writes a byte into memory at \emph{destination} from \emph{source}}
+	{Writes a byte into memory at \emph{destination} from \emph{source}. Paging applies.}
 \begin{lstlisting}
-mwrite8(destination, source & 0xFF)
+mwrite8(tavp(destination, W), source & 0xFF)
 \end{lstlisting}
 
 \subsection{Register operations}
@@ -463,7 +463,7 @@ if a == b {
 \opr{0x00}{0x13}{result}{a}{b}{0x01}
 	{Signed version of \emph{cmp}, comparing signed values.}
 \begin{lstlisting}
--- see cmpu, signed implementation difference is internal
+-- see cmpu
 \end{lstlisting}
 
 \subsubsection{add - integer addition}
@@ -565,21 +565,21 @@ result = ashr32(a, n)
 \opi{0x00}{0x19}{a}{n}{0x00}
 	{Shifts the value of \emph{a} in-place left by \emph{n} places}
 \begin{lstlisting}
-a = lshl32(a, zeroe16(n))
+a = lshl32(a, signe16(n))
 \end{lstlisting}
 
 \subsubsection{shri - logical shift right immediate}
 \opi{0x00}{0x19}{a}{n}{0x01}
 	{Shifts the value of \emph{a} in-place right by \emph{n} places}
 \begin{lstlisting}
-a = lshr32(a, zeroe16(n))
+a = lshr32(a, signe16(n))
 \end{lstlisting}
 
 \subsubsection{shsri - arithmetic (signed) shift right immediate}
 \opi{0x00}{0x19}{a}{n}{0x02}
 	{Shifts the value of \emph{a} in-place right by \emph{n} places, sign-replicating the result}
 \begin{lstlisting}
-a = ashr32(a, zeroe16(n))
+a = ashr32(a, signe16(n))
 \end{lstlisting}
 
 \subsection{Interrupt control}
@@ -592,7 +592,7 @@ a = ashr32(a, zeroe16(n))
 	}
 
 \subsubsection{inti - raise software interrupt immediate}
-\opj{0x00}{0x1B}{id}{--}
+\opi{0x00}{0x1B}{--}{id}{--}
 	{
 		Raises a software interrupt. Interrupt arguments are read from \emph{rfi0} and \emph{rfi1}.
 		\\\\
@@ -616,7 +616,7 @@ if enable {
 
 \subsubsection{reti - return from interrupt handler}
 \opr{0x00}{0x1D}{--}{--}{--}{--}
-	{Sets the \emph{register frame pointer} to the value of the \emph{last frame pointer} and adds 4 to the \emph{instruction pointer} to proceed to the next instruction. This instruction should only be called inside of a \hyperref[CPU-ir:HANDLER]{Interrupt Routine Handler}}
+	{Sets the \emph{register frame pointer} to the value of the \emph{last frame pointer} and adds 4 to the \emph{instruction pointer} to proceed to the next instruction. This instruction should only be called inside of a \hyperref[CPU-ir:HANDLER]{Interrupt Routine Handler}.}
 \begin{lstlisting}
 rfp = rlfp
 rip = rip + 4
@@ -624,24 +624,28 @@ rip = rip + 4
 
 \subsection{Memory operations}
 \subsubsection{mcw - copy word}
-\opr{0x00}{0x1E}{\&destination}{\&source}{--}{0x00}
-	{TODO}
+\opr{0x00}{0x1E}{\&destination (4-aligned)}{\&source (4-aligned)}{--}{0x00}
+	{Copies a single word from memory at \emph{source} directly into memory at \emph{destination}. Paging applies.
+	\\\\
+	NOTE: \emph{source} and \emph{destination} \textbf{must} be word-aligned. If it isn't, the MMU will raise a \textbf{\#MAE}}
 \begin{lstlisting}
-mwrite32(destination, mread32(source))
+mwrite32(tavp(destination, W), mread32(tavp(source, R)))
 \end{lstlisting}
 
 \subsubsection{mch - copy half-word}
-\opr{0x00}{0x1E}{\&destination}{\&source}{--}{0x01}
-	{TODO}
+\opr{0x00}{0x1E}{\&destination (2-aligned)}{\&source (2-aligned)}{--}{0x01}
+	{Copies a single half-word from memory at \emph{source} directly into memory at \emph{destination}. Paging applies.
+	\\\\
+	NOTE: \emph{source} and \emph{destination} \textbf{must} be half-word-aligned. If it isn't, the MMU will raise a \textbf{\#MAE}}
 \begin{lstlisting}
-mwrite16(destination, mread16(source))
+mwrite16(tavp(destination, W), mread16(tavp(source, R)))
 \end{lstlisting}
 
 \subsubsection{mcb - copy byte}
 \opr{0x00}{0x1E}{\&destination}{\&source}{--}{0x02}
-	{TODO}
+	{Copies a single byte from memory at \emph{source} directly into memory at \emph{destination}. Paging applies.}
 \begin{lstlisting}
-mwrite8(destination, mread8(source))
+mwrite8(tavp(destination, W), mread8(tavp(source, R)))
 \end{lstlisting}
 
 \end{document}
