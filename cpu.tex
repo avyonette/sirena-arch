@@ -328,7 +328,7 @@ As well as global registers having the following default values:
 \hline
 Register & Value \\
 \hline
-rfp & 0xFFFE 0000 \\
+rfp & 0xFFFF FF00 \\
 \hline
 rrap & 0x0 \\
 \hline
@@ -503,6 +503,14 @@ rfi0 & Description \\
 \hline
 0x01 & New frame pointer outside system RAM \\
 \hline
+0x02 & Unknown feature requested \\
+\hline
+0x03 & Out of range \\
+\hline
+0x04 & Wrong I/O data size \\
+\hline
+0xFF & Other invalid operation \\
+\hline
 		\end{tabular}
 	}
 \end{table}
@@ -660,6 +668,8 @@ Physical address of the IRH & Physical address of the register frame & Reserved 
 	}
 \end{table}
 
+NOTE: The \emph{register frame} used by the IRH \textbf{must} be writeable and located in a R/W memory region.
+
 \subsection{Interrupt Routine Handler} \label{ir:HANDLER}
 Interrupt Routine Handlers (IRH) are \emph{user-defined} \emph{level-1} procedures that respond to a specific interrupt raised by the CPU. IRs have their own \emph{register frame} and can access the previous \emph{register frame} via its address located in the \verb|rlfp| register.
 
@@ -797,11 +807,17 @@ Base & Limit & Description & Type \\
 \hline
 0xFFA0 0000 & 0xFFA1 0000 & \acrshort{BLIP} ROM & Read-only, restricted \\
 \hline
-0xFFA1 0000 & 0xFFFD FC00 & -- & Reserved \\
+0xFFA1 0000 & 0xFFFD E000 & -- & Reserved \\
+% \hline
+% 0xFFFD FA00 & 0xFFFD FB00 & SPI controller & Hardware, restricted \\
+% \hline
+% 0xFFFD FB00 & 0xFFFD FC00 & UART controller & Hardware, restricted \\
+% \hline
+% 0xFFFD FC00 & 0xFFFD FE00 & \hyperref[SPPB-SPPB:PMMT]{SPPBC} memory map & Hardware, restricted \\
 \hline
-0xFFFD FC00 & 0xFFFD FE00 & \hyperref[SPPB-SPPB:PMMT]{SPPBC} memory map & Hardware, restricted \\
+0xFFFD E000 & 0xFFFD E200 & Level-1 memory map (\ref{mm:PML1}) & Hardware, restricted \\
 \hline
-0xFFFD FE00 & 0xFFFE 0000 & Level-1 memory map (\ref{mm:PML1}) & Hardware, restricted \\
+0xFFFD E200 & 0xFFFE 0000 & -- & Reserved \\
 \hline
 0xFFFE 0000 & 0xFFFF FFFF & System RAM & System, restricted \\
 \hline
@@ -815,7 +831,7 @@ NOTE: \emph{System RAM} is a physically separate block of memory that is connect
 \subsection{Level-1 physical memory map} \label{mm:PML1}
 This map routes addresses within \emph{User}-designated spaces to optional interface host controllers, such as the \hyperref[SPPB-SPPB:PMMT]{SPPBC}. It must be programmed by the supervisor alongside interface-specific structures for the MMU to be able to discern \emph{regular} memory addresses from addresses designated for use with \gls{MMIO}.
 
-By default, all addresses are mapped to \emph{User RAM}. It can map up to 64 address ranges total. All addresses must be \verb|0x1000|-aligned.
+By default, all addresses are mapped to \emph{User RAM}. It must be able to map \emph{at least} up to 64 address ranges total. All addresses must be \verb|0x1000|-aligned.
 
 \begin{table}[H]
 	\centering
@@ -845,36 +861,45 @@ Offset & Value \\
 	\centering
 	\caption{Level-1 memory map table entry}
 	{
-		\begin{tabular}{|c|c|c|c|}
+		\begin{tabular}{|c|c|c|c|c|}
 \hline
-63..44 & 43..24 & 23..4 & 3..0 \\
+63..44 & 43..24 & 23..16 & 15..8 & 7..0 \\
 \hline
-\&bs & \&lm & -- & tg \\
+\&lm & \&bs & -- & idx & tg \\
 \hline
-Base address[31:12] & Limit address[31:12] & Reserved & Target \\
-\hline
-		\end{tabular}
-	}
-\end{table}
-
-Where \emph{target} must be one of the following:
-
-\begin{table}[H]
-	\centering
-	{
-		\begin{tabular}{|c|c|}
-\hline
-Value & Description \\
-\hline
-0x0 & None \\
-\hline
-0x1 & \hyperref[SPPB-SPPBC]{SPPB controller} \\
+Limit address[31:12] & Base address[31:12] & Reserved & Index & Target \\
 \hline
 		\end{tabular}
 	}
 \end{table}
 
-\textbf{IMPORTANT: If the MMU forwards an address to the \emph{target} that does not exist in its memory map, it must raise a \#MAE.} \\
+Where \emph{index} is the index of the target device to support addressing more than one device at a time
+and \emph{target} must be one of the available hardware feature IDs (See \ref{hw:fid}) or 0 for none.\\
+
+% \begin{table}[H]
+% 	\centering
+% 	{
+% 		\begin{tabular}{|c|c|}
+% \hline
+% Value & Description \\
+% \hline
+% 0x0 & None \\
+% \hline
+% 0x1 & \hyperref[hw:pit]{PIT} \\
+% \hline
+% 0x2 & \hyperref[hw:uart]{UART controller} \\
+% \hline
+% 0x3 & \hyperref[hw:spi]{SPI controller} \\
+% \hline
+% 0x4 & \hyperref[SPPB-SPPB:PMMT]{SPPBC} memory map \\
+% \hline
+% 0x5 & \hyperref[SPPB-SPPBC]{SPPB controller} \\
+% \hline
+% 		\end{tabular}
+% 	}
+% \end{table}
+
+\textbf{IMPORTANT: If the MMU tries to forwards an address to a \emph{target} that does not exist in its feature set or an index that is out of range for its feature devices, it must raise a \#IOP.} \\
 \\
 Overlapping address ranges are undefined behaviour and implementation-specific.
 
@@ -950,9 +975,187 @@ A transfer between protection level for the current \emph{frame} can be performe
 % TODO how would a user context switch back? answer: via software interrupt for cooperative multitasking or external timer for preemptive multitasking
 A context switch can be performed at any time by the \emph{supervisor} by writing to the \verb|rfp| register.
 
+\section{Hardware features}
+\subsection{Feature ID table} \label{hw:fid}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|c|}
+\hline
+Bit & ID & Feature \\
+\hline
+0 & 0x01 & \hyperref[hw:pit]{PIT} \\
+\hline
+1 & 0x02 & \hyperref[hw:uart]{UART} \\
+\hline
+2 & 0x03 & \hyperref[hw:spi]{SPI} \\
+\hline
+3 & 0x04 & \hyperref[SPPB-SPPB]{SPPB} \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\subsection{Programmable Interval Timer} \label{hw:pit}
+If a CPU lists the PIT as an available feature, it must have at least 4 total PITs. The actual number of available timers can be fetched through \verb|cpuft| (See \ref{pit:ft}). I/O attempts with non-word-size data raise a \textbf{\#IOP}.
+
+\begin{itemize}
+	\item write \verb|base + 0| - command
+\end{itemize}
+
+\begin{table}[H]
+	\centering
+	\caption{Command frame}
+	{
+		\begin{tabular}{|c|c|}
+\hline
+31..3 & 2..0 \\
+\hline
+dt & cmd \\
+\hline
+Data & Command \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+A call to an unknown command raises \textbf{\#UDO}.
+
+\subsubsection{0x00 Set mode}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|}
+\hline
+cmd & dt \\
+\hline
+0x00 & Requested mode \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+Sets the target mode for this timer.
+
+\begin{table}[H]
+	\centering
+	\caption{Available timer modes}
+	{
+		\begin{tabular}{|c|c|c|}
+\hline
+ID & Name & Description \\
+\hline
+0x00 & Disabled & This timer is disabled (default) \\
+\hline
+0x01 & One-shot & Calls a target INT on tick and disables itself \\
+\hline
+0x02 & Tick & Calls a target INT on every tick \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+In any mode aside from \emph{disabled}, the timer increments an internal counter by 1 for every passed tick. A mode change does not reset the counter.\\
+\\
+Trying to set an invalid mode raises \textbf{\#IOP}.
+
+\subsubsection{0x01 Set tick rate}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|}
+\hline
+cmd & dt \\
+\hline
+0x01 & Target tick rate \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+% TODO what does the tick rate mean? Hz? (will need to know how an actual hardware implementation could work)
+
+\subsubsection{0x02 Set target INT}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|}
+\hline
+cmd & dt \\
+\hline
+0x02 & Target INT \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+Sets the target INT ID for this timer to call based on the current mode. A passed ID of 0 (default) disables any interrupt calling.
+
+\subsubsection{0x03 Get tick count}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|}
+\hline
+cmd & dt \\
+\hline
+0x03 & Target register \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+Writes the tick count of this timer to the \emph{target register}.
+
+\subsubsection{0x04 Reset counter}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|}
+\hline
+cmd & dt \\
+\hline
+0x04 & -- \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+Resets the internal counter of this timer to 0.
+
+\subsubsection{Feature information} \label{pit:ft}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|}
+\hline
+31..8 & 7..0 \\
+\hline
+-- & num \\
+\hline
+Unused & Number of available timers \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\subsection{UART} \label{hw:uart}
+\begin{itemize}
+	\item write \verb|base + 0| (byte data) - TX
+	\item read \verb|base + 1| (byte data) - RX
+\end{itemize}
+
+\subsection{SPI} \label{hw:spi}
+% TODO
+The built-in SPI controller always acts as a \emph{master} and must support at least 2 \emph{slave} devices. Operations on the controller and communication between the controller and devices is done through I/O on the mapped memory address, here referred to as the \emph{base address} (See \ref{mm:PML}):
+
+\begin{itemize}
+	\item write \verb|base + 0| (byte id) - select target device
+	\item ...
+\end{itemize}
+
 \section{Structures}
 \subsection{CPUID} \label{st:CPUID}
-
 \begin{table}[H]
 	\centering
 	\resizebox{\linewidth}{!}{

@@ -156,8 +156,12 @@
 	{Performs no operation. The number of cycles consumed by this instruction is implementation-dependent and not guaranteed.}
 
 \subsubsection{cpuid - CPU identification}
-\opr{0x00}{0x01}{result}{--}{--}{--}
+\opi{0x00}{0x01}{result}{--}{0x00}
 	{Writes the CPUID structure into \emph{result}. See \hyperref[CPU-st:CPUID]{CPU: CPUID}}
+
+\subsubsection{cpuft - CPU feature}
+\opi{0x00}{0x01}{result}{feature}{0x01}
+	{Writes information about a specific CPU feature into \emph{result}. A \emph{feature} value of 0 returns the available features (See CPU:\ref{CPU-hw:fid} [Feature ID table]). If information about a non-existing feature is requested, the CPU raises a \textbf{\#IOP}.}
 
 \begin{lstlisting}
 // implementation-specific
