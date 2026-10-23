@@ -25,8 +25,8 @@
 
 %opening
 \title{
-	$SiER^2NA$ \\
-	\small Simple Extensible Register-Register Neumann Architecture \\
+	$SiR^2ENA$ \\
+	\small Simple Register-Register Extensible Neo-Architecture \\
 	\large CPU Developer Reference \\
 	\large 1.0
 }
@@ -42,7 +42,7 @@
 \printglossaries
 
 \section{Introduction}
-This document complements the \verb|SiERNA| computer architecture by specifications for the \gls{CPU}. It is to be used as a reference for both software and hardware developers for functions and working details of the \gls{CPU}.
+This document complements the \verb|SiRENA| computer architecture by specifications for the \gls{CPU}. It is to be used as a reference for both software and hardware developers for functions and working details of the \gls{CPU}.
 
 \subsection{Architectural details}
 \begin{itemize}
@@ -55,7 +55,7 @@ This document complements the \verb|SiERNA| computer architecture by specificati
 
 \section{Registers}
 
-The SiERNA architecture, similarily to the TMS9900, does not store general-purpose registers on the CPU, but rather a \emph{frame pointer} that points to the address in \emph{system RAM} of the current \emph{register frame} for the executing context.
+The SiRENA architecture, similarily to the TMS9900, does not store general-purpose registers on the CPU, but rather a \emph{frame pointer} that points to the address in \emph{system RAM} of the current \emph{register frame} for the executing context.
 
 A \emph{register frame} refers to a (virtual) structure in RAM of 128 bytes (1024 bits) in length that stores 32 4-byte values total:
 
@@ -461,11 +461,15 @@ ID & Mnemonic & Name & Type & Notes \\
 0x08 & \#GPE & General Protection Error & Trap & See \ref{ir:GPE} \\
 \hline
 0x09 & & & & \\
-.. & & & & Reserved \\
-0x1F & & & & \\
+.. & & & & CPU reserved \\
+0x0F & & & & \\
 \hline
-0x20 & & & & \\
+0x10 & & & & \\
 .. & & & Signal & User-defined \\
+0x8F & & & & \\
+\hline
+0x90 & & & & \\
+.. & & & Signal & Hardware reserved \\
 0xFF & & & & \\
 \hline
 		\end{tabular}
@@ -508,6 +512,8 @@ rfi0 & Description \\
 0x03 & Out of range \\
 \hline
 0x04 & Wrong I/O data size \\
+\hline
+0xFE & UART attempted write during transfer \\
 \hline
 0xFF & Other invalid operation \\
 \hline
@@ -680,7 +686,7 @@ Any ID in the \emph{user-defined} range (See \ref{ir:list}) can be used for cust
 
 \section{Memory management}
 \subsection{Paging}
-The SiERNA architecture utilises \emph{paging} as its technique for memory protection and virtual address space mapping. A single page spans \textbf{4 KiB} (\verb|0x1000|) of physical memory.
+The SiRENA architecture utilises \emph{paging} as its technique for memory protection and virtual address space mapping. A single page spans \textbf{4 KiB} (\verb|0x1000|) of physical memory.
 
 The page table is a 3-level nested structure; the full 32-bit virtual address space (0x0000 0000 - 0xFFFF FFFF) is encapsulated by a level-0 page directory which contains 256 entries, each pointing to a level-1 page directory. A level-1 page directory contains 256 entries, each pointing to a page table (or 0). Every page table entry (page descriptor) then describes the page as well as its physical address. This allows for mapping the entire address range without unnecessarily wasting too much memory for paging structures in situations that do not need the entire address range mapped.
 
@@ -1140,10 +1146,101 @@ Unused & Number of available timers \\
 \end{table}
 
 \subsection{UART} \label{hw:uart}
+UART uses PIT 0 as it's internal timer, with INT 0x90 as the callback interrupt.
+
 \begin{itemize}
-	\item write \verb|base + 0| (byte data) - TX
-	\item read \verb|base + 1| (byte data) - RX
+	\item write \verb|base + 0| (word cfg) - configure
+	\item write \verb|base + 4| (byte data) - TX
+	\item read \verb|base + 5| (byte data) - RX
+	\item read \verb|base + 6| (byte state) - get TX state
+	\item read \verb|base + 7| (byte state) - get RX state
 \end{itemize}
+
+NOTE: Reading is a non-blocking operation and outputs the byte currently stored in the controller, or 0 if none or the data has not yet been fully received. Another option to receive data from the UART controller is INT 0x91. (See below)
+
+NOTE: Trying to transmit data (i.e. writing to TX) while existing data is still being transferred will result in a \textbf{\#IOP} with rfi0 \verb|0xFE|
+
+\subsubsection{TX state}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|}
+\hline
+0 & Idle \\
+\hline
+1 & Start (internal) \\
+\hline
+2 & Sending data \\
+\hline
+3 & Stop (internal) \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\subsubsection{RX state}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|}
+\hline
+0 & Idle \\
+\hline
+1 & Receiving data \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+\subsubsection{Configuration packet}
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|c|}
+\hline
+31..26 & 25..24 & 23..0 \\
+\hline
+-- & pr & bd \\
+\hline
+Reserved & Parity bit & Baud rate \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+Where \emph{parity bit} can be one of:
+\begin{table}[H]
+	\centering
+	{
+		\begin{tabular}{|c|c|}
+\hline
+0 & None \\
+\hline
+1 & Odd \\
+\hline
+2 & Even \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+And \emph{baud rate} depends on the implementation. Every implementation must support at least a baud rate of 9600.
+
+NOTE: An invalid \emph{parity bit} is corrected to \emph{None}, and an unsupported \emph{baud rate} is corrected to 9600.
+
+\subsubsection{Interrupts}
+\begin{table}[H]
+	\centering
+	\begin{tabular}{|c|c|c|c|}
+\hline
+INT & Description & rfi0 & rfi1 \\
+\hline
+0x90 & Timer tick & -- & -- \\
+\hline
+0x91 & Data receive & byte data & -- \\
+\hline
+	\end{tabular}
+\end{table}
 
 \subsection{SPI} \label{hw:spi}
 % TODO
