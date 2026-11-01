@@ -688,10 +688,10 @@ Any ID in the \emph{user-defined} range (See \ref{ir:list}) can be used for cust
 \subsection{Paging}
 The SiRENA architecture utilises \emph{paging} as its technique for memory protection and virtual address space mapping. A single page spans \textbf{4 KiB} (\verb|0x1000|) of physical memory.
 
-The page table is a 3-level nested structure; the full 32-bit virtual address space (0x0000 0000 - 0xFFFF FFFF) is encapsulated by a level-0 page directory which contains 256 entries, each pointing to a level-1 page directory. A level-1 page directory contains 256 entries, each pointing to a page table (or 0). Every page table entry (page descriptor) then describes the page as well as its physical address. This allows for mapping the entire address range without unnecessarily wasting too much memory for paging structures in situations that do not need the entire address range mapped.
+The page table is a 2-level nested structure; the full 32-bit virtual address space (0x0000 0000 - 0xFFFF FFFF) is encapsulated by a page directory which contains 1024 entries, each pointing to a page table. A page table contains 1024 entries (descriptors), each describing the page as well as its physical address. This allows for mapping the entire address range without unnecessarily wasting too much memory for paging structures in situations that do not need the entire address range mapped.
 
 \subsubsection{Page Directory}
-The page directory is an linear array of 256 page directory entries
+The page directory is an linear array of 1024 page directory entries
 
 \begin{table}[H]
 	\centering
@@ -708,9 +708,9 @@ Offset & Value \\
 \hline
 ... & ... \\
 \hline
-0x3FC & Entry 255 \\
+0xFFC & Entry 1023 \\
 \hline
-\multicolumn{2}{|c|}{0x400} \\
+\multicolumn{2}{|c|}{0x1000} \\
 \hline
 		\end{tabular}
 	}
@@ -724,20 +724,20 @@ The page directory entry specifies where in physical memory the targeted page di
 	{
 		\begin{tabular}{|c|c|c|}
 \hline
-31..4 & 3..1 & 0 \\
+31..12 & 11..1 & 0 \\
 \hline
 \&adr & -- & p \\
 \hline
-Physical page directory/table address[31:4] & Reserved & Present \\
+Physical page directory/table address[31:12] & Reserved & Present \\
 \hline
 		\end{tabular}
 	}
 \end{table}
 
-NOTE: \verb|adr| and the target structure \textbf{must} be \verb|0x10| aligned
+NOTE: \verb|adr| and the target structure \textbf{must} be page aligned (\verb|0x1000|)
 
 \subsubsection{Page Table}
-The page table is a linear array of 16 page descriptors
+The page table is a linear array of 1024 page descriptors
 
 \begin{table}[H]
 	\centering
@@ -754,9 +754,9 @@ Offset & Value \\
 \hline
 ... & ... \\
 \hline
-0x3C & Descriptor 15 \\
+0xFFC & Descriptor 1023 \\
 \hline
-\multicolumn{2}{|c|}{0x40} \\
+\multicolumn{2}{|c|}{0x1000} \\
 \hline
 		\end{tabular}
 	}
@@ -790,9 +790,9 @@ The \emph{target program}, after receiving control from the \gls{BLIP}, should s
 \subsection{Virtual memory}
 The position (offset/index) of a page descriptor within the page directory as a whole determines the virtual address that gets mapped to the specific physical address that the page descriptor contains.
 
-For example, the virtual address \verb|0xABCDE000| would need a page descriptor at the 15th (\verb|(0xABCDE000 >> 12) & 15 = 14|) position of the page table located at the 206th (\verb|(0xABCDE000 >> 16) & 255 = 205|) position of a level-1 page directory, which would be addressed in the 172th (\verb|0xABCDE000 >> 24 = 171|) position of the level-0 page directory.
+For example, the virtual address \verb|0xABCDE000| would need a page descriptor at the 223rd (\verb|(0xABCDE000 >> 12) & 1023 = 222|) position of the page table located at the 688th (\verb|(0xABCDE000 >> 22) & 1023 = 687|) position of a page directory.
 
-This also translates to the last 8 bits (\verb|0xFF000000|) of the address indicating the level-1 page directory index, the previous 8 bits (\verb|0x00FF0000|) indicating the level-1 page directory index, and the previous 4 bits (\verb|0x0000F000|) indicating the page table index, with the last 12 bits being the in-page address offset as pages are aligned to (\verb|0x1000|).
+This also translates to the last 10 bits (\verb|0xFFC00000|) of the address indicating the page directory index, and the previous 10 bits (\verb|0x003FF000|) indicating the table index, with the first 12 bits being the in-page address offset as pages are aligned to (\verb|0x1000|).
 
 \subsection{Access protection}
 The nature of paging implicitly provides memory access protection features. Since, unless explicitly overriden or sharing physical pages between contexts, each context has its own virtual address space and virtual-physical address map, a malicious context cannot access memory of other contexts.
