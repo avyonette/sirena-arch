@@ -167,7 +167,7 @@ Stores the address of the current stack frame
 
 {\small \textit{Write-restricted}}
 
-Stores the physical address of the level-0 page directory structure. If it points to 0, paging is disabled.
+Stores the physical address of the level-0 page directory structure. If it points to 0, paging is disabled. Must be page-aligned.
 
 \subsection{Restricted purpose}
 \subsubsection{(0x1F) rz - zero register}
@@ -716,8 +716,10 @@ Offset & Value \\
 	}
 \end{table}
 
+NOTE: The page directory and its address stored in \verb|rpdp| \textbf{must} be page-aligned (\verb|0x1000|)
+
 \subsubsection{Page Directory Entry}
-The page directory entry specifies where in physical memory the targeted page directory or page table is located and its flags
+The page directory entry specifies where in physical memory the targeted page directory or page table is located and its flags. It's location set through the \verb|rpdp| must be page-aligned (\verb|0x1000|):
 
 \begin{table}[H]
 	\centering
@@ -734,7 +736,7 @@ Physical page directory/table address[31:12] & Reserved & Present \\
 	}
 \end{table}
 
-NOTE: \verb|adr| and the target structure \textbf{must} be page aligned (\verb|0x1000|)
+NOTE: \verb|adr| and the target structure \textbf{must} be page-aligned (\verb|0x1000|)
 
 \subsubsection{Page Table}
 The page table is a linear array of 1024 page descriptors
@@ -780,7 +782,7 @@ Physical target page address[31:12] & Reserved & Execute & Writeable & Privilege
 	}
 \end{table}
 
-NOTE: \verb|adr| \textbf{must} be page aligned (\verb|0x1000|)
+NOTE: \verb|adr| \textbf{must} be page-aligned (\verb|0x1000|)
 
 \subsubsection{Setting up paging}
 % On early initialisation, the \emph{bootup late initialisation program} sets up an identity map for the low memory region (\verb|0x00000000-0x00010000|). After the \emph{target program} takes over it should set up its own page directory structure according to its needs and point its \verb|rpdp| register to the physical address of the level-0 page directory.
