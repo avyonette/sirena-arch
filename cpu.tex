@@ -767,24 +767,47 @@ Offset & Value \\
 \end{table}
 
 \subsubsection{Page Descriptor}
-The page descriptor specifies what physical page this specific descriptor maps to, as well as permissions and other flags
-
 \begin{table}[H]
 	\centering
+	\caption{Type-0 page descriptor}
 	\resizebox{\linewidth}{!}{
-		\begin{tabular}{|c|c|c|c|c|c|}
+		\begin{tabular}{|c|c|c|c|c|c|c|}
 \hline
-31..12 & 11..5 & 4 & 3 & 2..1 & 0 \\
+31..12 & 11..6 & 5 & 4 & 3..2 & 1 & 0 \\
 \hline
-\&adr & -- & ex & rw & pl & p \\
+\&adr & -- & ex & rw & pl & t & p \\
 \hline
-Physical target page address[31:12] & Reserved & Execute & Writeable & Privilege level & Present \\
+Physical target page address[31:12] & Reserved & Execute & Writeable & Privilege level & Always 0 & Present \\
 \hline
 		\end{tabular}
 	}
 \end{table}
 
+The type-0 page descriptor specifies what physical page this specific descriptor maps to, as well as permissions and other flags.\\
+\\
 NOTE: \verb|adr| \textbf{must} be page-aligned (\verb|0x1000|)
+
+\begin{table}[H]
+	\centering
+	\caption{Type-1 page descriptor}
+	\resizebox{\linewidth}{!}{
+		\begin{tabular}{|c|c|c|c|c|c|c|c|}
+\hline
+31..16 & 15..12 & 11..6 & 5 & 4 & 3..2 & 1 & 0 \\
+\hline
+of & id & ty & ex & rw & pl & t & p \\
+\hline
+Offset & Device ID & Device type & Execute & Writeable & Privilege level & Always 1 & Present \\
+\hline
+		\end{tabular}
+	}
+\end{table}
+
+The type-1 page descriptor specifies what hardware device this specific descriptor maps to, as well as permissions and other flags.
+
+Where \emph{id} is the index of the target device to support addressing more than one device at a time and \emph{type} must be one of the available hardware feature IDs (See \ref{hw:fid}).
+
+The \emph{offset} can be used for mapping more than a single page to a single device (for a maximum of 256 MiB).
 
 \subsubsection{Setting up paging}
 % On early initialisation, the \emph{bootup late initialisation program} sets up an identity map for the low memory region (\verb|0x00000000-0x00010000|). After the \emph{target program} takes over it should set up its own page directory structure according to its needs and point its \verb|rpdp| register to the physical address of the level-0 page directory.
@@ -801,7 +824,7 @@ This also translates to the last 10 bits (\verb|0xFFC00000|) of the address indi
 \subsection{Access protection}
 The nature of paging implicitly provides memory access protection features. Since, unless explicitly overriden or sharing physical pages between contexts, each context has its own virtual address space and virtual-physical address map, a malicious context cannot access memory of other contexts.
 
-\subsection{Level-0 physical memory map} \label{mm:PML}
+\subsection{Physical memory map} \label{mm:PML}
 This map is assigned by the hardware and can not be modified.
 
 \begin{table}[H]
@@ -838,53 +861,53 @@ Base & Limit & Description & Type \\
 % TODO change this wording here cause ugh
 NOTE: \emph{System RAM} is a physically separate block of memory that is connected directly to the CPU as well as the MMU. It is used for direct register frame I/O and should be used by the \emph{target program} for operations that require frequent and faster access than regular DRAM.
 
-\subsection{Level-1 physical memory map} \label{mm:PML1}
-This map routes addresses within \emph{User}-designated spaces to optional interface host controllers, such as the \hyperref[SPPB-SPPB:PMMT]{SPPBC}. It must be programmed by the supervisor alongside interface-specific structures for the MMU to be able to discern \emph{regular} memory addresses from addresses designated for use with \gls{MMIO}.
+% \subsection{Level-1 physical memory map} \label{mm:PML1}
+% This map routes addresses within \emph{User}-designated spaces to optional interface host controllers, such as the \hyperref[SPPB-SPPB:PMMT]{SPPBC}. It must be programmed by the supervisor alongside interface-specific structures for the MMU to be able to discern \emph{regular} memory addresses from addresses designated for use with \gls{MMIO}.
 
-By default, all addresses are mapped to \emph{User RAM}. It must be able to map \emph{at least} up to 64 address ranges total. All addresses must be \verb|0x1000|-aligned.
+% By default, all addresses are mapped to \emph{User RAM}. It must be able to map \emph{at least} up to 64 address ranges total. All addresses must be \verb|0x1000|-aligned.
 
-\begin{table}[H]
-	\centering
-	\caption{Level-1 memory map table}
-	{
-		\begin{tabular}{|c|c|}
-\hline
-Offset & Value \\
-\hline
-0x00 & Entry 0 \\
-\hline
-0x08 & Entry 1 \\
-\hline
-0x10 & Entry 2 \\
-\hline
-... & ... \\
-\hline
-0x1F8 & Entry 63 \\
-\hline
-\multicolumn{2}{|c|}{0x200} \\
-\hline
-		\end{tabular}
-	}
-\end{table}
+% \begin{table}[H]
+% 	\centering
+% 	\caption{Level-1 memory map table}
+% 	{
+% 		\begin{tabular}{|c|c|}
+% \hline
+% Offset & Value \\
+% \hline
+% 0x00 & Entry 0 \\
+% \hline
+% 0x08 & Entry 1 \\
+% \hline
+% 0x10 & Entry 2 \\
+% \hline
+% ... & ... \\
+% \hline
+% 0x1F8 & Entry 63 \\
+% \hline
+% \multicolumn{2}{|c|}{0x200} \\
+% \hline
+% 		\end{tabular}
+% 	}
+% \end{table}
 
-\begin{table}[H]
-	\centering
-	\caption{Level-1 memory map table entry}
-	{
-		\begin{tabular}{|c|c|c|c|c|}
-\hline
-63..44 & 43..24 & 23..16 & 15..8 & 7..0 \\
-\hline
-\&lm & \&bs & -- & idx & tg \\
-\hline
-Limit address[31:12] & Base address[31:12] & Reserved & Index & Target \\
-\hline
-		\end{tabular}
-	}
-\end{table}
+% \begin{table}[H]
+% 	\centering
+% 	\caption{Level-1 memory map table entry}
+% 	{
+% 		\begin{tabular}{|c|c|c|c|c|}
+% \hline
+% 63..44 & 43..24 & 23..16 & 15..8 & 7..0 \\
+% \hline
+% \&lm & \&bs & -- & idx & tg \\
+% \hline
+% Limit address[31:12] & Base address[31:12] & Reserved & Index & Target \\
+% \hline
+% 		\end{tabular}
+% 	}
+% \end{table}
 
-Where \emph{index} is the index of the target device to support addressing more than one device at a time
-and \emph{target} must be one of the available hardware feature IDs (See \ref{hw:fid}) or 0 for none.\\
+% Where \emph{index} is the index of the target device to support addressing more than one device at a time
+% and \emph{target} must be one of the available hardware feature IDs (See \ref{hw:fid}) or 0 for none.\\
 
 % \begin{table}[H]
 % 	\centering
@@ -909,9 +932,9 @@ and \emph{target} must be one of the available hardware feature IDs (See \ref{hw
 % 	}
 % \end{table}
 
-\textbf{IMPORTANT: If the MMU tries to forwards an address to a \emph{target} that does not exist in its feature set or an index that is out of range for its feature devices, it must raise a \#IOP.} \\
-\\
-Overlapping address ranges are undefined behaviour and implementation-specific.
+% \textbf{IMPORTANT: If the MMU tries to forwards an address to a \emph{target} that does not exist in its feature set or an index that is out of range for its feature devices, it must raise a \#IOP.} \\
+% \\
+% Overlapping address ranges are undefined behaviour and implementation-specific.
 
 \subsection{Memory Management Unit}
 The MMU is handles memory I/O operations and address routing.
@@ -954,6 +977,11 @@ As stated in \P\ref{ma}, the MMU allows only type-aligned addressing for I/O and
 A \textbf{\hyperref[ir:MAE]{\#MAE}} should also be raised if the CPU tries to access a restricted address range.\\
 \\
 How the MMU communicates with other internal CPU components is up to the specific implementation.
+
+\section{Memory-mapped I/O (MMIO)}
+Communication between the user program and internal or external devices is handled through \gls{MMIO}.
+
+\gls{MMIO} works under the same principle as virtual memory, i.e. through paging. Instead of a page descriptor responsible for mapping the virtual page to a physical page, a special type is created that tells the MMU to redirect I/O on that page to a specific device.
 
 \section{Protection domains}
 There exist two privilege levels:
@@ -1083,7 +1111,9 @@ cmd & dt \\
 	}
 \end{table}
 
-% TODO what does the tick rate mean? Hz? (will need to know how an actual hardware implementation could work)
+Sets the tick rate for this timer. The tick rate is the divisor of the base PIT clock. For example, a tick rate of 10 on a base PIT clock of 100 MHz would instruct the timer to run at 10 MHz.\\
+\\
+A rate of 0 disables ticking.
 
 \subsubsection{0x02 Set target INT}
 \begin{table}[H]
@@ -1137,13 +1167,13 @@ Resets the internal counter of this timer to 0.
 \begin{table}[H]
 	\centering
 	{
-		\begin{tabular}{|c|c|}
+		\begin{tabular}{|c|c|c|}
 \hline
-31..8 & 7..0 \\
+31..28 & 27..8 & 7..0 \\
 \hline
--- & num \\
+-- & clk & num \\
 \hline
-Unused & Number of available timers \\
+Unused & Base clock (kHz) & Number of available timers \\
 \hline
 		\end{tabular}
 	}
